@@ -1,0 +1,2 @@
+"C:\Program Files (x86)\Microsoft DirectX SDK (February 2010)\Utilities\bin\x86\fxc.exe" /T cs_4_0 C:\Projects\ComputeShaderEffects\ComputeShaderEffects\RadialBlur\RadialBlur.hlsl /E CSMain /FoC:\Projects\ComputeShaderEffects\ComputeShaderEffects\Shaders\RadialBlur.fx
+"C:\Program Files (x86)\Microsoft DirectX SDK (February 2010)\Utilities\bin\x86\fxc.exe" /T cs_4_0 C:\Projects\ComputeShaderEffects\ComputeShaderEffects\RadialBlur\RadialBlurBuff.hlsl /E CSMain /FoC:\Projects\ComputeShaderEffects\ComputeShaderEffects\Shaders\RadialBlurBuff.fx
