@@ -6,12 +6,13 @@ using System.Drawing;
 using PaintDotNet.Effects;
 using PaintDotNet.PropertySystem;
 using PaintDotNet;
-using SlimDX.Direct3D11;
+using SharpDX.Direct3D11;
 using System.Runtime.InteropServices;
 using System.IO;
 using System.Configuration;
-using SlimDX.D3DCompiler;
+using SharpDX.D3DCompiler;
 using System.Windows.Forms;
+using SharpDX.Direct3D;
 
 namespace ComputeShaderEffects
 {
@@ -88,7 +89,7 @@ namespace ComputeShaderEffects
         public bool CustomRegionHandling { get; set; }
 
         /*
-        internal unsafe static void CopyStreamToSurface(SlimDX.DataBox dbox, Surface dst, Rectangle rect)
+        internal unsafe static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
         {
             byte* textureBuffer = (byte*)dbox.Data.DataPointer;
             ulong stride = (ulong)(rect.Width * COLOR_SIZE);
@@ -102,9 +103,9 @@ namespace ComputeShaderEffects
         }
          */
 
-        internal unsafe static void CopyStreamToSurface(SlimDX.DataBox dbox, Surface dst, Rectangle rect)
+        internal unsafe static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
         {
-            byte* textureBuffer = (byte*)dbox.Data.DataPointer;
+            byte* textureBuffer = (byte*)dbox.DataPointer;
 
             for (int y = rect.Top; y < rect.Bottom; y++)
             {
@@ -142,9 +143,9 @@ namespace ComputeShaderEffects
             } 
         }
 
-        internal static SlimDX.Direct3D11.ShaderResourceView CreateArrayView(float[] values, Device device, out SlimDX.DataStream data, out SlimDX.Direct3D11.Buffer buff)
+        internal static SharpDX.Direct3D11.ShaderResourceView CreateArrayView(float[] values, Device device, out SharpDX.DataStream data, out SharpDX.Direct3D11.Buffer buff)
         {
-            data = new SlimDX.DataStream(values.Length * Marshal.SizeOf(typeof(float)), true, true);
+            data = new SharpDX.DataStream(values.Length * Marshal.SizeOf(typeof(float)), true, true);
             data.WriteRange<float>(values);
 
             // Create the compute shader buffer and views for common data
@@ -152,47 +153,47 @@ namespace ComputeShaderEffects
             return CreateView(device, buff);
         }
 
-        internal static SlimDX.Direct3D11.Buffer CreateStagingBuffer(Device device, DeviceContext context, SlimDX.Direct3D11.Buffer buffer)
+        internal static SharpDX.Direct3D11.Buffer CreateStagingBuffer(Device device, DeviceContext context, SharpDX.Direct3D11.Buffer buffer)
         {
             BufferDescription desc = buffer.Description;
 
             desc.CpuAccessFlags = CpuAccessFlags.Read;
             desc.Usage = ResourceUsage.Staging;
             desc.BindFlags = BindFlags.None;
-            desc.OptionFlags = ResourceOptionFlags.StructuredBuffer;
+            desc.OptionFlags = ResourceOptionFlags.BufferStructured;
 
-            return new SlimDX.Direct3D11.Buffer(device, desc);
+            return new SharpDX.Direct3D11.Buffer(device, desc);
         }
 
-        internal static SlimDX.Direct3D11.Buffer CreateBuffer(Device device, SlimDX.DataStream initData, int stride)
+        internal static SharpDX.Direct3D11.Buffer CreateBuffer(Device device, SharpDX.DataStream initData, int stride)
         {
             BufferDescription desc = new BufferDescription
             {
                 BindFlags = BindFlags.ShaderResource,
                 SizeInBytes = (int)initData.Length,
                 StructureByteStride = stride,
-                OptionFlags = ResourceOptionFlags.StructuredBuffer
+                OptionFlags = ResourceOptionFlags.BufferStructured
             };
 
             initData.Position = 0;
 
-            return new SlimDX.Direct3D11.Buffer(device, initData, desc);
+            return new SharpDX.Direct3D11.Buffer(device, initData, desc);
         }
 
-        internal static SlimDX.Direct3D11.Buffer CreateBuffer(Device device, int sizeInBytes, int stride)
+        internal static SharpDX.Direct3D11.Buffer CreateBuffer(Device device, int sizeInBytes, int stride)
         {
             BufferDescription desc = new BufferDescription
             {
                 BindFlags = BindFlags.UnorderedAccess | BindFlags.ShaderResource,
                 SizeInBytes = sizeInBytes,
                 StructureByteStride = stride,
-                OptionFlags = ResourceOptionFlags.StructuredBuffer
+                OptionFlags = ResourceOptionFlags.BufferStructured
             };
 
-            return new SlimDX.Direct3D11.Buffer(device, desc);
+            return new SharpDX.Direct3D11.Buffer(device, desc);
         }
 
-        internal static SlimDX.Direct3D11.Buffer CreateConstantBuffer(Device device, int size)
+        internal static SharpDX.Direct3D11.Buffer CreateConstantBuffer(Device device, int size)
         {
             BufferDescription desc = new BufferDescription
             {
@@ -202,21 +203,21 @@ namespace ComputeShaderEffects
                 CpuAccessFlags = CpuAccessFlags.None
             };
 
-            return new SlimDX.Direct3D11.Buffer(device, desc);
+            return new SharpDX.Direct3D11.Buffer(device, desc);
         }
 
         internal static void CreateDevice(out Device device, out DeviceContext context, out bool isInitialized)
         {
             try
             {
-                FeatureLevel[] level = new FeatureLevel[] { FeatureLevel.Level_10_0 };
-                device = new Device(DriverType.Hardware, DeviceCreationFlags.SingleThreaded, level);
+                SharpDX.Direct3D.FeatureLevel[] level = new SharpDX.Direct3D.FeatureLevel[] { SharpDX.Direct3D.FeatureLevel.Level_10_0 };
+                device = new Device( SharpDX.Direct3D.DriverType.Hardware, DeviceCreationFlags.SingleThreaded, level);
 
                 if (!device.CheckFeatureSupport(Feature.ComputeShaders))
                 {
                     // GPU does not support compute shaders
                     device.Dispose();
-                    device = new Device(DriverType.Warp, DeviceCreationFlags.SingleThreaded, level);
+                    device = new Device(SharpDX.Direct3D.DriverType.Warp, DeviceCreationFlags.SingleThreaded, level);
 
                     if (!device.CheckFeatureSupport(Feature.ComputeShaders))
                     {
@@ -260,11 +261,11 @@ namespace ComputeShaderEffects
                 Height = height,
                 MipLevels = 1,
                 ArraySize = 1,
-                Format = SlimDX.DXGI.Format.B8G8R8A8_UNorm,
+                Format = SharpDX.DXGI.Format.B8G8R8A8_UNorm,
                 Usage = ResourceUsage.Dynamic,
                 BindFlags = BindFlags.ShaderResource,
                 CpuAccessFlags = CpuAccessFlags.Write,
-                SampleDescription = new SlimDX.DXGI.SampleDescription(1, 0)
+                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0)
             };
 
             texture = new Texture2D(device, texDesc);
@@ -273,8 +274,7 @@ namespace ComputeShaderEffects
             {
                 Dimension = ShaderResourceViewDimension.Texture2D,
                 Format = texDesc.Format,
-                MipLevels = 1,
-                ArraySize = texDesc.ArraySize
+                Texture2D = { MipLevels = 1, MostDetailedMip=0 } 
             };
 
             return new ShaderResourceView(device, texture, desc);
@@ -282,12 +282,13 @@ namespace ComputeShaderEffects
 
         internal static void CreateShader(Device device, out ShaderBytecode shaderCode, out ComputeShader shader, string shaderPath)
         {
-            SlimDX.DataStream data = new SlimDX.DataStream(GetEmbeddedContent(shaderPath), true, false);
-            shaderCode = new ShaderBytecode(data);
+            //SharpDX.DataStream data = new SharpDX.DataStream(GetEmbeddedContent(shaderPath), true, false);
+            MemoryStream mem = new MemoryStream(GetEmbeddedContent(shaderPath));
+            shaderCode = new ShaderBytecode(mem);
             shader = new ComputeShader(device, shaderCode);
         }
 
-        internal static ShaderResourceView CreateView(out Texture2D texture, Device device, SlimDX.DataStream ds, int width, int height)
+        internal static ShaderResourceView CreateView(out Texture2D texture, Device device, SharpDX.DataStream ds, int width, int height)
         {
             Texture2DDescription texDesc = new Texture2DDescription
             {
@@ -295,48 +296,45 @@ namespace ComputeShaderEffects
                 Height = height,
                 MipLevels = 1,
                 ArraySize = 1,
-                Format = SlimDX.DXGI.Format.B8G8R8A8_UNorm,
+                Format = SharpDX.DXGI.Format.B8G8R8A8_UNorm,
                 Usage = ResourceUsage.Dynamic,
                 BindFlags = BindFlags.ShaderResource,
                 CpuAccessFlags = CpuAccessFlags.Write,
-                SampleDescription = new SlimDX.DXGI.SampleDescription(1, 0)
+                SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0)
             };
 
-            SlimDX.DataRectangle data = new SlimDX.DataRectangle(width * COLOR_SIZE, ds);
+            SharpDX.DataRectangle data = new SharpDX.DataRectangle(ds.DataPointer, width * COLOR_SIZE);
             texture = new Texture2D(device, texDesc, data);
 
             ShaderResourceViewDescription desc = new ShaderResourceViewDescription
             {
-                Dimension = ShaderResourceViewDimension.Texture2D,
+                Dimension = SharpDX.Direct3D.ShaderResourceViewDimension.Texture2D,
                 Format = texDesc.Format,
-                MipLevels = 1,
-                ArraySize = texDesc.ArraySize
+                Texture2D = { MipLevels = 1, MostDetailedMip = 0 }
             };
 
             return new ShaderResourceView(device, texture, desc);
         }
 
-        internal static UnorderedAccessView CreateUnorderedAccessView(Device device, SlimDX.Direct3D11.Buffer buffer)
+        internal static UnorderedAccessView CreateUnorderedAccessView(Device device, SharpDX.Direct3D11.Buffer buffer)
         {
             UnorderedAccessViewDescription desc = new UnorderedAccessViewDescription
             {
                 Dimension = UnorderedAccessViewDimension.Buffer,
-                FirstElement = 0,
-                Format = SlimDX.DXGI.Format.Unknown,
-                ElementCount = buffer.Description.SizeInBytes / buffer.Description.StructureByteStride
+                Format = SharpDX.DXGI.Format.Unknown,
+                Buffer = { FirstElement = 0, ElementCount = buffer.Description.SizeInBytes / buffer.Description.StructureByteStride }
             };
 
             return new UnorderedAccessView(device, buffer, desc);
         }
 
-        internal static ShaderResourceView CreateView(Device device, SlimDX.Direct3D11.Buffer buffer)
+        internal static ShaderResourceView CreateView(Device device, SharpDX.Direct3D11.Buffer buffer)
         {
             ShaderResourceViewDescription desc = new ShaderResourceViewDescription
             {
                 Dimension = ShaderResourceViewDimension.ExtendedBuffer,
-                FirstElement = 0,
-                Format = SlimDX.DXGI.Format.Unknown,
-                ElementCount = buffer.Description.SizeInBytes / buffer.Description.StructureByteStride
+                Format = SharpDX.DXGI.Format.Unknown,
+                Buffer = { FirstElement = 0, ElementCount = buffer.Description.SizeInBytes / buffer.Description.StructureByteStride }
             };
 
             return new ShaderResourceView(device, buffer, desc);
@@ -359,22 +357,22 @@ namespace ComputeShaderEffects
             return ConfigurationManager.OpenMappedExeConfiguration(map, ConfigurationUserLevel.None);
         }
 
-        internal static void RunComputeShader(DeviceContext context, ComputeShader shader, ShaderResourceView[] views, UnorderedAccessView[] unordered, SlimDX.Direct3D11.Buffer constParams, int x, int y)
+        internal static void RunComputeShader(DeviceContext context, ComputeShader shader, ShaderResourceView[] views, UnorderedAccessView[] unordered, SharpDX.Direct3D11.Buffer constParams, int x, int y)
         {
-            ComputeShaderWrapper cs = context.ComputeShader;
+            ComputeShaderStage cs = context.ComputeShader;
 
             cs.Set(shader);
-            cs.SetShaderResources(views, 0, views.Length);
-            cs.SetUnorderedAccessViews(unordered, 0, unordered.Length, new int[] { 0 });
-            cs.SetConstantBuffer(constParams, 0);
+            cs.SetShaderResources(0, views);
+            cs.SetUnorderedAccessViews(0, unordered);
+            cs.SetConstantBuffer(0, constParams);
             context.Dispatch(x, y, 1);
         }
 
-        internal static SlimDX.DataStream SurfaceToStream(Surface src)
+        internal static SharpDX.DataStream SurfaceToStream(Surface src)
         {
             //int height = src.Height;
             //int byteWidth = src.Width * COLOR_SIZE;
-            //SlimDX.DataStream imageStream = new SlimDX.DataStream(src.Width * height * COLOR_SIZE, true, true);
+            //SharpDX.DataStream imageStream = new SharpDX.DataStream(src.Width * height * COLOR_SIZE, true, true);
 
             //for (int imgY = 0; imgY < height; imgY++)
             //{
@@ -383,7 +381,7 @@ namespace ComputeShaderEffects
 
             //return imageStream;
 
-            return new SlimDX.DataStream(src.Scan0.Pointer, src.Width * src.Height * COLOR_SIZE, true, false);
+            return new SharpDX.DataStream(src.Scan0.Pointer, src.Width * src.Height * COLOR_SIZE, true, false);
         }
 
         protected abstract override PropertyCollection OnCreatePropertyCollection();
@@ -397,7 +395,7 @@ namespace ComputeShaderEffects
                 // Create DirectX device and shaders
                 CreateDevice(out device, out context, out this.isInitialized);
             }
-            catch (SlimDX.Direct3D11.Direct3D11Exception ex)
+            catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
                 this.isInitialized = false;

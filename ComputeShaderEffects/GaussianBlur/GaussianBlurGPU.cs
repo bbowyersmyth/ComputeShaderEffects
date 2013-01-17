@@ -9,8 +9,8 @@ using PaintDotNet;
 using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
-using SlimDX.Direct3D11;
-using SlimDX.D3DCompiler;
+using SharpDX.Direct3D11;
+using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.GaussianBlur
 {
@@ -36,8 +36,8 @@ namespace ComputeShaderEffects.GaussianBlur
         private bool repeatEdgePixels;
         private Dimensions blurDimensions;
         private float[] weights;
-        private SlimDX.DataStream weightData;
-        private SlimDX.Direct3D11.Buffer weightBuffer;
+        private SharpDX.DataStream weightData;
+        private SharpDX.Direct3D11.Buffer weightBuffer;
         private ShaderResourceView weightView;
         private bool isVert = false;
 
@@ -142,7 +142,7 @@ namespace ComputeShaderEffects.GaussianBlur
                     base.ApronSize = this.radius;
                 }
             }
-            catch (SlimDX.Direct3D11.Direct3D11Exception ex)
+            catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
                 base.IsInitialized = false;

@@ -8,8 +8,8 @@ using PaintDotNet;
 using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
-using SlimDX.Direct3D11;
-using SlimDX.D3DCompiler;
+using SharpDX.Direct3D11;
+using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.ZoomBlur
 {
@@ -115,7 +115,7 @@ namespace ComputeShaderEffects.ZoomBlur
                 base.SetShader(shaderPath);
                 base.Consts = new Constants();
             }
-            catch (SlimDX.Direct3D11.Direct3D11Exception ex)
+            catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
                 this.IsInitialized = false;

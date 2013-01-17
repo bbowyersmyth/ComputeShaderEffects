@@ -9,8 +9,8 @@ using PaintDotNet.Effects;
 using PaintDotNet.Rendering;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
-using SlimDX.Direct3D11;
-using SlimDX.D3DCompiler;
+using SharpDX.Direct3D11;
+using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.MotionBlur
 {
@@ -50,8 +50,8 @@ namespace ComputeShaderEffects.MotionBlur
         private int distance;
         private bool repeatEdgePixels;
         private PointType[] points;
-        private SlimDX.DataStream pointData;
-        private SlimDX.Direct3D11.Buffer pointBuffer;
+        private SharpDX.DataStream pointData;
+        private SharpDX.Direct3D11.Buffer pointBuffer;
         private ShaderResourceView pointView;
 
         private System.Diagnostics.Stopwatch tmr;
@@ -154,7 +154,7 @@ namespace ComputeShaderEffects.MotionBlur
                 if (base.IsInitialized)
                 {
                     // Copy points
-                    pointData = new SlimDX.DataStream(this.points.Length * Marshal.SizeOf(typeof(PointType)), true, true);
+                    pointData = new SharpDX.DataStream(this.points.Length * Marshal.SizeOf(typeof(PointType)), true, true);
 
                     foreach (PointType pt in this.points)
                     {
@@ -171,7 +171,7 @@ namespace ComputeShaderEffects.MotionBlur
                             Math.Abs(this.points[this.points.Length-1].Y)));
                 }
             }
-            catch (SlimDX.Direct3D11.Direct3D11Exception ex)
+            catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
                 base.IsInitialized = false;

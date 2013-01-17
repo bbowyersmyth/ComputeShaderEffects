@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Drawing;
 using PaintDotNet;
-using SlimDX.Direct3D11;
+using SharpDX.Direct3D11;
 using System.Windows.Forms;
-using SlimDX.D3DCompiler;
+using SharpDX.D3DCompiler;
 using System.Runtime.InteropServices;
 using PaintDotNet.PropertySystem;
 using System.Configuration;
@@ -47,12 +47,12 @@ namespace ComputeShaderEffects
             Surface src;
             Rectangle previousTileRect = new Rectangle();
             Rectangle previousRect = new Rectangle();
-            SlimDX.Direct3D11.Texture2D textureTile = null;
-            SlimDX.Direct3D11.Buffer resultBuffer = null;
-            SlimDX.Direct3D11.Buffer copyBuf = null;
+            SharpDX.Direct3D11.Texture2D textureTile = null;
+            SharpDX.Direct3D11.Buffer resultBuffer = null;
+            SharpDX.Direct3D11.Buffer copyBuf = null;
             ShaderResourceView textureTileView = null;
             UnorderedAccessView resultView = null;
-            SlimDX.Direct3D11.Buffer constBuffer = null;
+            SharpDX.Direct3D11.Buffer constBuffer = null;
 
             dst = dstArgs.Surface;
             src = srcArgs.Surface;
@@ -90,10 +90,10 @@ namespace ComputeShaderEffects
                 }
 
                 // Copy tile from src to texture
-                SlimDX.DataBox dbox = base.Context.MapSubresource(textureTile, 0, tileRect.Width * tileRect.Height * BUFF_SIZE, MapMode.WriteDiscard, MapFlags.None);
+                SharpDX.DataBox dbox = base.Context.MapSubresource(textureTile, 0, MapMode.WriteDiscard, MapFlags.None);
                 unsafe
                 {
-                    byte* textureBuffer = (byte*)dbox.Data.DataPointer;
+                    byte* textureBuffer = (byte*)dbox.DataPointer;
 
                     for (int y = tileRect.Top; y < tileRect.Bottom; y++)
                     {
@@ -105,12 +105,12 @@ namespace ComputeShaderEffects
                 }
 
                 // Update constants resource
-                using (SlimDX.DataStream data = new SlimDX.DataStream(Marshal.SizeOf(this.Consts), true, true))
+                using (SharpDX.DataStream data = new SharpDX.DataStream(Marshal.SizeOf(this.Consts), true, true))
                 {
                     byte[] constsBytes = RawSerialize(this.Consts);
                     data.Write(constsBytes, 0, constsBytes.Length);
                     data.Position = 0;
-                    base.Context.UpdateSubresource(new SlimDX.DataBox(0, 0, data), constBuffer, 0);
+                    base.Context.UpdateSubresource(new SharpDX.DataBox(data.DataPointer), constBuffer, 0);
                 }
 
                 resourceViews[0] = textureTileView;
@@ -126,7 +126,7 @@ namespace ComputeShaderEffects
                 base.Context.CopyResource(resultBuffer, copyBuf);
 
                 // Copy to destination pixels
-                SlimDX.DataBox mappedResource = base.Context.MapSubresource(copyBuf, 0, rect.Width * rect.Height * BUFF_SIZE, MapMode.Read, MapFlags.None);
+                SharpDX.DataBox mappedResource = base.Context.MapSubresource(copyBuf, 0, MapMode.Read, MapFlags.None);
                 CopyStreamToSurface(mappedResource, dst, rect);
                 base.Context.UnmapSubresource(copyBuf, 0);
 

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Drawing;
 using PaintDotNet;
-using SlimDX.Direct3D11;
+using SharpDX.Direct3D11;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Configuration;
@@ -15,10 +15,10 @@ namespace ComputeShaderEffects
     {
         private static int BUFF_SIZE = Marshal.SizeOf(typeof(ColorBgra));
 
-        private SlimDX.DataStream imageData;
+        private SharpDX.DataStream imageData;
         private ShaderResourceView imageView;
         private Texture2D texture;
-        private SlimDX.Direct3D11.Buffer imageBuffer;
+        private SharpDX.Direct3D11.Buffer imageBuffer;
         public bool IsLargeImage { get; set; }
         private System.Diagnostics.Stopwatch tmr;
 
@@ -95,7 +95,7 @@ namespace ComputeShaderEffects
                     }
                 }
             }
-            catch (SlimDX.Direct3D11.Direct3D11Exception ex)
+            catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
                 this.IsInitialized = false;
@@ -107,10 +107,10 @@ namespace ComputeShaderEffects
             Surface dst;
             Surface src;
             Rectangle previousRect = new Rectangle();
-            SlimDX.Direct3D11.Buffer resultBuffer = null;
-            SlimDX.Direct3D11.Buffer copyBuf = null;
+            SharpDX.Direct3D11.Buffer resultBuffer = null;
+            SharpDX.Direct3D11.Buffer copyBuf = null;
             UnorderedAccessView resultView = null;
-            SlimDX.Direct3D11.Buffer constBuffer = null;
+            SharpDX.Direct3D11.Buffer constBuffer = null;
 
             dst = dstArgs.Surface;
             src = srcArgs.Surface;
@@ -137,12 +137,12 @@ namespace ComputeShaderEffects
                 }
                 
                 // Update constants resource
-                using (SlimDX.DataStream data = new SlimDX.DataStream(Marshal.SizeOf(this.Consts), true, true))
+                using (SharpDX.DataStream data = new SharpDX.DataStream(Marshal.SizeOf(this.Consts), true, true))
                 {
                     byte[] constsBytes = RawSerialize(this.Consts);
                     data.Write(constsBytes, 0, constsBytes.Length);
                     data.Position = 0;
-                    base.Context.UpdateSubresource(new SlimDX.DataBox(0, 0, data), constBuffer, 0);
+                    base.Context.UpdateSubresource(new SharpDX.DataBox(data.DataPointer), constBuffer, 0);
                 }
 
                 resourceViews[0] = imageView;
@@ -158,7 +158,7 @@ namespace ComputeShaderEffects
                 base.Context.CopyResource(resultBuffer, copyBuf);
 
                 // Copy to destination pixels
-                SlimDX.DataBox mappedResource = base.Context.MapSubresource(copyBuf, 0, rect.Width * rect.Height * BUFF_SIZE, MapMode.Read, MapFlags.None);
+                SharpDX.DataBox mappedResource = base.Context.MapSubresource(copyBuf, 0, MapMode.Read, MapFlags.None);
                 CopyStreamToSurface(mappedResource, dst, rect);
                 base.Context.UnmapSubresource(copyBuf, 0);
 

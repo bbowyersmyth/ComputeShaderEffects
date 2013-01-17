@@ -9,8 +9,8 @@ using PaintDotNet;
 using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
-using SlimDX.Direct3D11;
-using SlimDX.D3DCompiler;
+using SharpDX.Direct3D11;
+using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.ChannelBlur
 {
@@ -46,14 +46,14 @@ namespace ComputeShaderEffects.ChannelBlur
         private float[] greenWeights;
         private float[] blueWeights;
         private float[] alphaWeights;
-        private SlimDX.DataStream weightRedData;
-        private SlimDX.DataStream weightGreenData;
-        private SlimDX.DataStream weightBlueData;
-        private SlimDX.DataStream weightAlphaData;
-        private SlimDX.Direct3D11.Buffer weightRedBuffer;
-        private SlimDX.Direct3D11.Buffer weightGreenBuffer;
-        private SlimDX.Direct3D11.Buffer weightBlueBuffer;
-        private SlimDX.Direct3D11.Buffer weightAlphaBuffer;
+        private SharpDX.DataStream weightRedData;
+        private SharpDX.DataStream weightGreenData;
+        private SharpDX.DataStream weightBlueData;
+        private SharpDX.DataStream weightAlphaData;
+        private SharpDX.Direct3D11.Buffer weightRedBuffer;
+        private SharpDX.Direct3D11.Buffer weightGreenBuffer;
+        private SharpDX.Direct3D11.Buffer weightBlueBuffer;
+        private SharpDX.Direct3D11.Buffer weightAlphaBuffer;
         private ShaderResourceView weightRedView;
         private ShaderResourceView weightGreenView;
         private ShaderResourceView weightBlueView;
@@ -178,7 +178,7 @@ namespace ComputeShaderEffects.ChannelBlur
                     base.ApronSize = Math.Max(Math.Max(Math.Max(this.redRadius, this.greenRadius), this.blueRadius), this.alphaRadius);
                 }
             }
-            catch (SlimDX.Direct3D11.Direct3D11Exception ex)
+            catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
                 this.IsInitialized = false;

@@ -8,8 +8,8 @@ using PaintDotNet;
 using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
-using SlimDX.Direct3D11;
-using SlimDX.D3DCompiler;
+using SharpDX.Direct3D11;
+using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.RadialBlur
 {
@@ -114,7 +114,7 @@ namespace ComputeShaderEffects.RadialBlur
                 base.Consts = new Constants();
                 this.theta = (float)this.angle / (float)1374.0 * (float)0.0174532925; // (float)Math.Cos(this.angle / 57.295779513082320876798154814105 / 1375.0);
             }
-            catch (SlimDX.Direct3D11.Direct3D11Exception ex)
+            catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
                 this.IsInitialized = false;
