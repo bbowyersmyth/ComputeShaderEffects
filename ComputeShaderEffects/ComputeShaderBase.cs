@@ -18,6 +18,9 @@ namespace ComputeShaderEffects
 {
     public abstract class ComputeShaderBase : PaintDotNet.Effects.PropertyBasedEffect
     {
+        [DllImport("kernel32.dll")]
+        protected static extern void CopyMemory(IntPtr destination, IntPtr source, int length); 
+
         private static int COLOR_SIZE = Marshal.SizeOf(typeof(ColorBgra));
         private bool newRender = false;
 
@@ -40,6 +43,7 @@ namespace ComputeShaderEffects
                 this.consts = value;
             }
         }
+
         public DeviceContext Context
         {
             get
@@ -51,6 +55,7 @@ namespace ComputeShaderEffects
                 this.context = value;
             }
         }
+
         public Device Device
         {
             get
@@ -62,6 +67,7 @@ namespace ComputeShaderEffects
                 this.device = value;
             }
         }
+
         public bool IsInitialized
         {
             get
@@ -73,8 +79,13 @@ namespace ComputeShaderEffects
                 this.isInitialized = value;
             }
         }
+
         public int DimensionX = 16;
         public int DimensionY = 16;
+        public int MaximumRegionWidth { get; set; }
+        public int MaximumRegionHeight { get; set; }
+        public int MaxTextureSize { get; private set; }
+        public bool CustomRegionHandling { get; set; }
 
         protected ComputeShaderBase(string name, Image image, string subMenuName, PaintDotNet.Effects.EffectFlags flags)
             : base(name, image, subMenuName, flags)
@@ -83,66 +94,31 @@ namespace ComputeShaderEffects
             CustomRegionHandling = false;
         }
 
-        public int MaximumRegionWidth { get; set; }
-        public int MaximumRegionHeight { get; set; }
-        public int MaxTextureSize { get; private set; }
-        public bool CustomRegionHandling { get; set; }
 
-        /*
-        internal unsafe static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
+        internal static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
         {
-            byte* textureBuffer = (byte*)dbox.Data.DataPointer;
-            ulong stride = (ulong)(rect.Width * COLOR_SIZE);
+            IntPtr textureBuffer = dbox.DataPointer;
+            IntPtr dstPointer = dst.GetPointPointer(rect.Left, rect.Top);
 
-            for (int y = rect.Top; y < rect.Bottom; y++)
+            if (rect.Width == dst.Width)
             {
-                ColorBgra* pDstPixels = dst.GetPointAddressUnchecked(rect.Left, y);
-                PaintDotNet.SystemLayer.Memory.Copy(pDstPixels, textureBuffer, stride);
-                textureBuffer += stride;
+                CopyMemory(dstPointer, textureBuffer, rect.Width * rect.Height * COLOR_SIZE);
+            }
+            else
+            {
+                int length = rect.Width * COLOR_SIZE;
+                int dstStride = dst.Stride;
+                int rectBottom = rect.Bottom;
+
+                for (int y = rect.Top; y < rectBottom; y++)
+                {
+                    CopyMemory(dstPointer, textureBuffer, length);
+                    textureBuffer = IntPtr.Add(textureBuffer, length);
+                    dstPointer = IntPtr.Add(dstPointer, dstStride);
+                }
             }
         }
-         */
-
-        internal unsafe static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
-        {
-            byte* textureBuffer = (byte*)dbox.DataPointer;
-
-            for (int y = rect.Top; y < rect.Bottom; y++)
-            {
-                CustomCopy(dst.GetPointAddressUnchecked(rect.Left, y), textureBuffer, rect.Width * COLOR_SIZE);
-                textureBuffer += rect.Width * COLOR_SIZE;
-            }
-        }
-
-        internal static unsafe void CustomCopy(void* dest, void* src, int count) {
-            int block; 
-            
-            block = count >> 3; 
-            
-            long* pDest = (long*)dest; 
-            long* pSrc = (long*)src; 
-            
-            for (int i = 0; i < block; i++) 
-            { 
-                *pDest = *pSrc; pDest++; pSrc++; 
-            } 
-            
-            dest = pDest; 
-            src = pSrc; 
-            count = count - (block << 3); 
-            
-            if (count > 0) 
-            { 
-                byte* pDestB = (byte*)dest; 
-                byte* pSrcB = (byte*)src; 
-                
-                for (int i = 0; i < count; i++) 
-                { 
-                    *pDestB = *pSrcB; pDestB++; pSrcB++; 
-                } 
-            } 
-        }
-
+        
         internal static SharpDX.Direct3D11.ShaderResourceView CreateArrayView(float[] values, Device device, out SharpDX.DataStream data, out SharpDX.Direct3D11.Buffer buff)
         {
             data = new SharpDX.DataStream(values.Length * Marshal.SizeOf(typeof(float)), true, true);
@@ -164,7 +140,7 @@ namespace ComputeShaderEffects
 
             return new SharpDX.Direct3D11.Buffer(device, desc);
         }
-
+        
         internal static SharpDX.Direct3D11.Buffer CreateBuffer(Device device, SharpDX.DataStream initData, int stride)
         {
             BufferDescription desc = new BufferDescription
@@ -211,7 +187,7 @@ namespace ComputeShaderEffects
             try
             {
                 SharpDX.Direct3D.FeatureLevel[] level = new SharpDX.Direct3D.FeatureLevel[] { SharpDX.Direct3D.FeatureLevel.Level_10_0 };
-                device = new Device( SharpDX.Direct3D.DriverType.Hardware, DeviceCreationFlags.SingleThreaded, level);
+                device = new Device(SharpDX.Direct3D.DriverType.Hardware, DeviceCreationFlags.SingleThreaded, level);
 
                 if (!device.CheckFeatureSupport(Feature.ComputeShaders))
                 {
@@ -279,10 +255,9 @@ namespace ComputeShaderEffects
 
             return new ShaderResourceView(device, texture, desc);
         }
-
+        
         internal static void CreateShader(Device device, out ShaderBytecode shaderCode, out ComputeShader shader, string shaderPath)
         {
-            //SharpDX.DataStream data = new SharpDX.DataStream(GetEmbeddedContent(shaderPath), true, false);
             MemoryStream mem = new MemoryStream(GetEmbeddedContent(shaderPath));
             shaderCode = new ShaderBytecode(mem);
             shader = new ComputeShader(device, shaderCode);

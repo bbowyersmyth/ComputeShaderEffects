@@ -18,13 +18,13 @@ namespace ComputeShaderEffects
         private static int BUFF_SIZE = Marshal.SizeOf(typeof(ColorBgra));
 
         public int ApronSize { get; set; }
-        private System.Diagnostics.Stopwatch tmr;
+        protected System.Diagnostics.Stopwatch tmr;
 
         public TiledComputeShaderBase(string name, Image image, string subMenuName, PaintDotNet.Effects.EffectFlags flags)
             : base(name, image, subMenuName, flags)
         {
-            MaximumRegionWidth = 1024;
-            MaximumRegionHeight = 1024;
+            MaximumRegionWidth = 2048;
+            MaximumRegionHeight = 512;
             CustomRegionHandling = true;
         }
 
@@ -46,13 +46,14 @@ namespace ComputeShaderEffects
             Surface dst;
             Surface src;
             Rectangle previousTileRect = new Rectangle();
-            Rectangle previousRect = new Rectangle();
+            Rectangle previousResultRect = new Rectangle();
             SharpDX.Direct3D11.Texture2D textureTile = null;
             SharpDX.Direct3D11.Buffer resultBuffer = null;
             SharpDX.Direct3D11.Buffer copyBuf = null;
             ShaderResourceView textureTileView = null;
             UnorderedAccessView resultView = null;
             SharpDX.Direct3D11.Buffer constBuffer = null;
+            bool isComplete = false;
 
             dst = dstArgs.Surface;
             src = srcArgs.Surface;
@@ -79,7 +80,7 @@ namespace ComputeShaderEffects
                 }
 
                 // Result buffer and view
-                if (previousRect.Width != rect.Width || previousRect.Height != rect.Height)
+                if (previousResultRect.Width != rect.Width || previousResultRect.Height != rect.Height)
                 {
                     resultView.DisposeIfNotNull();
                     resultBuffer.DisposeIfNotNull();
@@ -88,29 +89,35 @@ namespace ComputeShaderEffects
                     resultView = CreateUnorderedAccessView(base.Device, resultBuffer);
                     copyBuf = CreateStagingBuffer(base.Device, base.Context, resultBuffer);
                 }
+                
 
                 // Copy tile from src to texture
                 SharpDX.DataBox dbox = base.Context.MapSubresource(textureTile, 0, MapMode.WriteDiscard, MapFlags.None);
+                IntPtr textureBuffer = dbox.DataPointer;
+                IntPtr srcPointer = src.GetPointPointer(tileRect.Left, tileRect.Top);
+                int length = tileRect.Width * BUFF_SIZE;
+                int sourceStride = src.Stride;
+                int dstStride = dbox.RowPitch;
+                int tileBottom = tileRect.Bottom;
+
+                for (int y = tileRect.Top; y < tileBottom; y++)
+                {
+                    CopyMemory(textureBuffer, srcPointer, length);
+                    textureBuffer = IntPtr.Add(textureBuffer, dstStride);
+                    srcPointer = IntPtr.Add(srcPointer, sourceStride);
+                }
+                base.Context.UnmapSubresource(textureTile, 0);
+                
+                // Update constants resource
                 unsafe
                 {
-                    byte* textureBuffer = (byte*)dbox.DataPointer;
-
-                    for (int y = tileRect.Top; y < tileRect.Bottom; y++)
-                    {
-                        //PaintDotNet.SystemLayer.Memory.Copy(textureBuffer, src.GetPointAddressUnchecked(tileRect.Left, y), width);
-                        CustomCopy(textureBuffer, src.GetPointAddressUnchecked(tileRect.Left, y), tileRect.Width * BUFF_SIZE);
-                        textureBuffer += dbox.RowPitch;
-                    }
-                    base.Context.UnmapSubresource(textureTile, 0);
-                }
-
-                // Update constants resource
-                using (SharpDX.DataStream data = new SharpDX.DataStream(Marshal.SizeOf(this.Consts), true, true))
-                {
                     byte[] constsBytes = RawSerialize(this.Consts);
-                    data.Write(constsBytes, 0, constsBytes.Length);
-                    data.Position = 0;
-                    base.Context.UpdateSubresource(new SharpDX.DataBox(data.DataPointer), constBuffer, 0);
+                    fixed (byte* p = constsBytes)
+                    {
+                        var box = new SharpDX.DataBox((IntPtr)p);
+
+                        base.Context.UpdateSubresource(box, constBuffer);
+                    }
                 }
 
                 resourceViews[0] = textureTileView;
@@ -122,24 +129,29 @@ namespace ComputeShaderEffects
                     constBuffer,
                     (int)Math.Ceiling(rect.Width / (float)DimensionX),
                     (int)Math.Ceiling(rect.Height / (float)DimensionY));
-
+                
                 base.Context.CopyResource(resultBuffer, copyBuf);
 
                 // Copy to destination pixels
                 SharpDX.DataBox mappedResource = base.Context.MapSubresource(copyBuf, 0, MapMode.Read, MapFlags.None);
                 CopyStreamToSurface(mappedResource, dst, rect);
                 base.Context.UnmapSubresource(copyBuf, 0);
-
+                                
                 previousTileRect = tileRect;
-                previousRect = rect;
-
+                previousResultRect = rect;
+                
                 if (this.tmr != null &&
                     rect.Top + rect.Height == src.Height &&
                     rect.Right == src.Width)
                 {
-                    this.tmr.Stop();
-                    System.Windows.Forms.MessageBox.Show(this.tmr.ElapsedMilliseconds.ToString() + "ms");
+                    isComplete = true;
                 }
+            }
+
+            if (isComplete)
+            {
+                this.tmr.Stop();
+                System.Windows.Forms.MessageBox.Show(this.tmr.ElapsedMilliseconds.ToString() + "ms");
             }
 
             textureTileView.DisposeIfNotNull();

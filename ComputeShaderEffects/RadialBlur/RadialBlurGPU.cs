@@ -29,8 +29,6 @@ namespace ComputeShaderEffects.RadialBlur
     [PluginSupportInfo(typeof(PluginSupportInfo), DisplayName = "(GPU) Radial Blur")]
     public class RadialBlurGPU : ComputeShaderEffects.ImageComputeShaderBase
     {
-        private static int BUFF_SIZE = Marshal.SizeOf(typeof(uint)); 
-        
         private double angle;
         private Point center;
         private float theta;

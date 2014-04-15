@@ -30,8 +30,6 @@ namespace ComputeShaderEffects.GaussianBlur
     [PluginSupportInfo(typeof(PluginSupportInfo), DisplayName = "(GPU) Gaussian Blur")]
     public class GaussianBlurGPU : ComputeShaderEffects.DualPassComputeShaderBase
     {
-        private static int BUFF_SIZE = Marshal.SizeOf(typeof(ColorBgra)); 
-        
         private int radius;
         private bool repeatEdgePixels;
         private Dimensions blurDimensions;
@@ -40,8 +38,6 @@ namespace ComputeShaderEffects.GaussianBlur
         private SharpDX.Direct3D11.Buffer weightBuffer;
         private ShaderResourceView weightView;
         private bool isVert = false;
-
-        private System.Diagnostics.Stopwatch tmr;
 
         public enum PropertyNames
         {
@@ -220,13 +216,6 @@ namespace ComputeShaderEffects.GaussianBlur
             this.radius = newToken.GetProperty<Int32Property>(PropertyNames.Radius).Value;
             this.repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
             this.blurDimensions = (Dimensions)newToken.GetProperty<StaticListChoiceProperty>(PropertyNames.BlurDimensions).Value;
-            KeyValueConfigurationElement displayTimer = GetDllConfig().AppSettings.Settings["Timer"];
-
-            if (displayTimer != null && displayTimer.Value == "1")
-            {
-                this.tmr = new System.Diagnostics.Stopwatch();
-                this.tmr.Start();
-            }
 
             base.OnSetRenderInfo(newToken, dstArgs, srcArgs);
         }

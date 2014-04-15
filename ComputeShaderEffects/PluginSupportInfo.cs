@@ -1,5 +1,5 @@
-﻿using System;
-using PaintDotNet;
+﻿using PaintDotNet;
+using System;
 
 namespace ComputeShaderEffects
 {

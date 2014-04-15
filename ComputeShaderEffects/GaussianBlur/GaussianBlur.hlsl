@@ -7,8 +7,8 @@ cbuffer Consts : register(c0)
 	int weightLength;
 	int radius;
 	int2 regionOffset;
-    int regionWidth;
-    int padding2;
+	int regionWidth;
+	int padding2;
 };
 
 Texture2D<float4> Img : register(t0);
@@ -18,15 +18,18 @@ RWStructuredBuffer<uint> BufferOut : register(u0);
 SamplerState g_SampTex
 {
 	AddressU = Clamp;
-    AddressV = Clamp;
-    Filter = MIN_MAG_MIP_POINT;
+	AddressV = Clamp;
+	Filter = MIN_MAG_MIP_POINT;
 };
 
 // Conversion functions
-inline uint Float4ToUint( float4 ui ) 
-{ 
+inline uint Float4ToUint( float4 ui )
+{
 	uint4 uc = round(ui * 255);
-	return uc.b + (uc.g << 8) + (uc.r << 16) + (uc.a << 24);  
+	uc.g = uc.g << 8;
+	uc.r = uc.r << 16;
+	uc.a = uc.a << 24;
+	return dot(uc, 1);	// Add all components
 }
 
 
@@ -38,46 +41,64 @@ void CSMain( uint3 DTid : SV_DispatchThreadID )
 		return;
 	}
 
-	int2 pixelPoint = DTid.xy + regionOffset + 0.5;
-	float4 sampleColor;
+	float2 pixelPoint = DTid.xy + regionOffset;
 	float4 c = 0;
-	float2 pt;
 	float totalUsedWeight = 0;
-	int weightIndex = 0;
+	uint localWeightLength = weightLength;
+	uint startIndex = 0;
 
-	for (int i = -radius; i <= radius + 1; i++, weightIndex++)
-    {
-		#if VERT
-			// Vertical pass
-			pt = float2(pixelPoint.x, pixelPoint.y + i);
-		#else
-			// Horizontal pass
-			pt = float2(pixelPoint.x + i, pixelPoint.y);
-		#endif
+#if VERT
+	pixelPoint.y -= radius;
+#else
+	pixelPoint.x -= radius;
+#endif
 
-		#if !CLAMP
-			#if VERT
-				if (pt.y >= 0 && pt.y <= tileExtent.y)
-			#else
-				if (pt.x >= 0 && pt.x <= tileExtent.x)
-			#endif
-			{
-		#endif
+#if !CLAMP
+#if VERT
+	if (pixelPoint.y + localWeightLength > tileExtent.y)
+	{
+		localWeightLength = tileExtent.y - pixelPoint.y;
+	}
+	if (pixelPoint.y < 0)
+	{
+		startIndex = abs(pixelPoint.y);
+		pixelPoint.y = 0;
+	}
+#else
+	if (pixelPoint.x + localWeightLength > tileExtent.x)
+	{
+		localWeightLength = tileExtent.x - pixelPoint.x;
+	}
+	if (pixelPoint.x < 0)
+	{
+		startIndex = abs(pixelPoint.x);
+		pixelPoint.x = 0;
+	}
+#endif
+#endif
 
-		sampleColor = Img.SampleLevel(g_SampTex, pt / tileExtent, 0);
-		
-		c += sampleColor * Weights[weightIndex];
+	pixelPoint += 0.5;	// Texel offset
 
-		#if !CLAMP
-				totalUsedWeight += Weights[weightIndex];
-			} // End If (Bounds)
-		#endif
-    }
+	for (uint weightIndex = startIndex; weightIndex < localWeightLength; weightIndex++)
+	{
+		c += Img.SampleLevel(g_SampTex, pixelPoint / tileExtent, 0) * 
+				Weights[weightIndex];
 
-	#if !CLAMP
-		// Average the remaining weights
-		c /= totalUsedWeight;
-	#endif
-		
+#if !CLAMP
+		totalUsedWeight += Weights[weightIndex];
+#endif
+
+#if VERT
+		pixelPoint.y++;
+#else
+		pixelPoint.x++;
+#endif
+	}
+
+#if !CLAMP
+	// Average the remaining weights
+	c /= totalUsedWeight;
+#endif
+
 	BufferOut[DTid.y * regionWidth + DTid.x] = Float4ToUint(c);
 }

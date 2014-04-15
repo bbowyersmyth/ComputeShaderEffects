@@ -53,9 +53,7 @@ namespace ComputeShaderEffects.MotionBlur
         private SharpDX.DataStream pointData;
         private SharpDX.Direct3D11.Buffer pointBuffer;
         private ShaderResourceView pointView;
-
-        private System.Diagnostics.Stopwatch tmr;
-
+        
         public enum PropertyNames
         {
             Angle,
@@ -206,14 +204,7 @@ namespace ComputeShaderEffects.MotionBlur
             double x = alpha * Math.Cos(theta);
             double y = alpha * Math.Sin(theta);
             PointF end = new PointF((float)x, (float)-y);
-            KeyValueConfigurationElement displayTimer = GetDllConfig().AppSettings.Settings["Timer"];
             int pointCount;
-
-            if (displayTimer != null && displayTimer.Value == "1")
-            {
-                this.tmr = new System.Diagnostics.Stopwatch();
-                this.tmr.Start();
-            }
 
             if (this.centered)
             {
@@ -236,7 +227,7 @@ namespace ComputeShaderEffects.MotionBlur
                 for (int i = 0; i < this.points.Length; i++)
                 {
                     float frac = ((float)i * 2) / ((float)(pointCount - 1));
-                    PointF pt = PaintDotNet.Rendering.PointFUtil.Lerp(start, end, frac);
+                    PointF pt = Lerp(start, end, frac);
                     points[i].X = (float)pt.X;
                     points[i].Y = (float)pt.Y;
                 }
@@ -254,6 +245,11 @@ namespace ComputeShaderEffects.MotionBlur
             }
             pointBuffer.DisposeIfNotNull();
             pointView.DisposeIfNotNull();
+        }
+
+        private static PointF Lerp(PointF a, PointF b, float t)
+        {
+            return new PointF(a.X + t * (b.X - a.X), a.Y + t * (b.Y - a.Y));
         }
     }
 }

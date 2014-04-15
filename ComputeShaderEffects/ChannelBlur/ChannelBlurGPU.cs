@@ -59,9 +59,7 @@ namespace ComputeShaderEffects.ChannelBlur
         private ShaderResourceView weightBlueView;
         private ShaderResourceView weightAlphaView;
         private bool isVert = false;
-
-        private System.Diagnostics.Stopwatch tmr;
-
+        
         public enum PropertyNames
         {
             RepeatEdgePixels,
@@ -262,14 +260,7 @@ namespace ComputeShaderEffects.ChannelBlur
             this.alphaRadius = newToken.GetProperty<Int32Property>(PropertyNames.AlphaRadius).Value;
             this.repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
             this.blurDimensions = (Dimensions)newToken.GetProperty<StaticListChoiceProperty>(PropertyNames.BlurDimensions).Value;
-            KeyValueConfigurationElement displayTimer = GetDllConfig().AppSettings.Settings["Timer"];
-
-            if (displayTimer != null && displayTimer.Value == "1")
-            {
-                this.tmr = new System.Diagnostics.Stopwatch();
-                this.tmr.Start();
-            }
-
+ 
             base.OnSetRenderInfo(newToken, dstArgs, srcArgs);
         }
 

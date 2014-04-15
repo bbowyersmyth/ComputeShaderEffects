@@ -70,6 +70,12 @@ namespace ComputeShaderEffects
             }
             else
             {
+                if (base.tmr != null)
+                {
+                    base.tmr = new System.Diagnostics.Stopwatch();
+                    base.tmr.Start();
+                }
+
                 this.pass = 2;
                 if (FullImageSelected(srcArgs.Bounds))
                 {
@@ -113,13 +119,11 @@ namespace ComputeShaderEffects
 
             foreach (Rectangle copyRect in rois)
             {
+                int length = copyRect.Width * COLOR_SIZE;
+
                 for (int y = copyRect.Top; y < copyRect.Bottom; y++)
                 {
-                    //ColorBgra* pSrcPixels = source.GetPointAddressUnchecked(copyRect.Left, y);
-                    //ColorBgra* pDstPixels = dest.GetPointAddressUnchecked(copyRect.Left, y);
-
-                    //PaintDotNet.SystemLayer.Memory.Copy(pDstPixels, pSrcPixels, (ulong)(copyRect.Width * COLOR_SIZE));
-                    CustomCopy(dest.GetPointAddressUnchecked(copyRect.Left, y), source.GetPointAddressUnchecked(copyRect.Left, y), copyRect.Width * COLOR_SIZE);
+                    CopyMemory(dest.GetPointPointer(copyRect.Left, y), source.GetPointPointer(copyRect.Left, y), length);
                 }
             }
         }
