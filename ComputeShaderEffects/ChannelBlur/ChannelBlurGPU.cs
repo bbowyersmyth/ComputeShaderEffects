@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -10,7 +9,6 @@ using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
 using SharpDX.Direct3D11;
-using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.ChannelBlur
 {
@@ -32,34 +30,34 @@ namespace ComputeShaderEffects.ChannelBlur
     }
 
     [PluginSupportInfo(typeof(PluginSupportInfo), DisplayName = "(GPU) Channel Blur")]
-    public class ChannelBlurGPU : ComputeShaderEffects.DualPassComputeShaderBase
+    public class ChannelBlurGPU : DualPassComputeShaderBase
     {
-        private static int BUFF_SIZE = Marshal.SizeOf(typeof(uint)); 
-        
-        private int redRadius;
-        private int greenRadius;
-        private int blueRadius;
-        private int alphaRadius;
-        private bool repeatEdgePixels;
-        private Dimensions blurDimensions;
-        private float[] redWeights;
-        private float[] greenWeights;
-        private float[] blueWeights;
-        private float[] alphaWeights;
-        private SharpDX.DataStream weightRedData;
-        private SharpDX.DataStream weightGreenData;
-        private SharpDX.DataStream weightBlueData;
-        private SharpDX.DataStream weightAlphaData;
-        private SharpDX.Direct3D11.Buffer weightRedBuffer;
-        private SharpDX.Direct3D11.Buffer weightGreenBuffer;
-        private SharpDX.Direct3D11.Buffer weightBlueBuffer;
-        private SharpDX.Direct3D11.Buffer weightAlphaBuffer;
-        private ShaderResourceView weightRedView;
-        private ShaderResourceView weightGreenView;
-        private ShaderResourceView weightBlueView;
-        private ShaderResourceView weightAlphaView;
-        private bool isVert = false;
-        
+        private static int BUFF_SIZE = Marshal.SizeOf(typeof(uint));
+
+        private int _redRadius;
+        private int _greenRadius;
+        private int _blueRadius;
+        private int _alphaRadius;
+        private bool _repeatEdgePixels;
+        private Dimensions _blurDimensions;
+        private float[] _redWeights;
+        private float[] _greenWeights;
+        private float[] _blueWeights;
+        private float[] _alphaWeights;
+        private SharpDX.DataStream _weightRedData;
+        private SharpDX.DataStream _weightGreenData;
+        private SharpDX.DataStream _weightBlueData;
+        private SharpDX.DataStream _weightAlphaData;
+        private SharpDX.Direct3D11.Buffer _weightRedBuffer;
+        private SharpDX.Direct3D11.Buffer _weightGreenBuffer;
+        private SharpDX.Direct3D11.Buffer _weightBlueBuffer;
+        private SharpDX.Direct3D11.Buffer _weightAlphaBuffer;
+        private ShaderResourceView _weightRedView;
+        private ShaderResourceView _weightGreenView;
+        private ShaderResourceView _weightBlueView;
+        private ShaderResourceView _weightAlphaView;
+        private bool _isVert = false;
+
         public enum PropertyNames
         {
             RepeatEdgePixels,
@@ -77,24 +75,12 @@ namespace ComputeShaderEffects.ChannelBlur
             VerticalOnly
         }
 
-        public static string StaticName
-        {
-            get
-            {
-                return "(GPU) Channel Blur";
-            }
-        }
+        public static string StaticName => "(GPU) Channel Blur";
 
-        public static Bitmap StaticIcon
-        {
-            get
-            {
-                return new Bitmap(typeof(ChannelBlurGPU), "ChannelBlurIcon.png");
-            }
-        }
+        public static Bitmap StaticIcon => new Bitmap(typeof(ChannelBlurGPU), "ChannelBlurIcon.png");
 
         public ChannelBlurGPU()
-            : base(ChannelBlurGPU.StaticName, ChannelBlurGPU.StaticIcon, SubmenuNames.Blurs, PaintDotNet.Effects.EffectFlags.Configurable | PaintDotNet.Effects.EffectFlags.SingleThreaded)
+            : base(ChannelBlurGPU.StaticName, ChannelBlurGPU.StaticIcon, SubmenuNames.Blurs, EffectFlags.Configurable | EffectFlags.SingleThreaded)
         {
         }
 
@@ -125,9 +111,9 @@ namespace ComputeShaderEffects.ChannelBlur
             props.Add(new Int32Property(PropertyNames.GreenRadius, 0, 0, 200));
             props.Add(new Int32Property(PropertyNames.BlueRadius, 0, 0, 200));
             props.Add(new Int32Property(PropertyNames.AlphaRadius, 0, 0, 200));
-            props.Add(StaticListChoiceProperty.CreateForEnum<Dimensions>(PropertyNames.BlurDimensions, Dimensions.HorizontalAndVertical, false));
+            props.Add(StaticListChoiceProperty.CreateForEnum(PropertyNames.BlurDimensions, Dimensions.HorizontalAndVertical, false));
             props.Add(new BooleanProperty(PropertyNames.RepeatEdgePixels, true));
-            
+
             return new PropertyCollection(props);
         }
 
@@ -139,7 +125,7 @@ namespace ComputeShaderEffects.ChannelBlur
                 {
                     CleanUpLocal();
                 }
-                catch 
+                catch
                 {
                 }
             }
@@ -152,34 +138,34 @@ namespace ComputeShaderEffects.ChannelBlur
             CleanUpLocal();
 
             base.OnPreRender(dstArgs, srcArgs);
-            
+
             try
             {
-                if (this.IsInitialized)
+                if (IsInitialized)
                 {
                     // Copy weights
-                    this.redWeights = CreateBlurWeights(this.redRadius);
-                    this.greenWeights = CreateBlurWeights(this.greenRadius);
-                    this.blueWeights = CreateBlurWeights(this.blueRadius);
-                    this.alphaWeights = CreateBlurWeights(this.alphaRadius);
-                    
-                    weightRedView = CreateArrayView(this.redWeights, base.Device, out weightRedData, out weightRedBuffer);
-                    weightGreenView = CreateArrayView(this.greenWeights, base.Device, out weightGreenData, out weightGreenBuffer);
-                    weightBlueView = CreateArrayView(this.blueWeights, base.Device, out weightBlueData, out weightBlueBuffer);
-                    weightAlphaView = CreateArrayView(this.alphaWeights, base.Device, out weightAlphaData, out weightAlphaBuffer);
+                    _redWeights = CreateBlurWeights(_redRadius);
+                    _greenWeights = CreateBlurWeights(_greenRadius);
+                    _blueWeights = CreateBlurWeights(_blueRadius);
+                    _alphaWeights = CreateBlurWeights(_alphaRadius);
 
-                    base.AddResourceViews(new ShaderResourceView[] { weightRedView, weightGreenView, weightBlueView, weightAlphaView });
+                    _weightRedView = CreateArrayView(_redWeights, Device, out _weightRedData, out _weightRedBuffer);
+                    _weightGreenView = CreateArrayView(_greenWeights, Device, out _weightGreenData, out _weightGreenBuffer);
+                    _weightBlueView = CreateArrayView(_blueWeights, Device, out _weightBlueData, out _weightBlueBuffer);
+                    _weightAlphaView = CreateArrayView(_alphaWeights, Device, out _weightAlphaData, out _weightAlphaBuffer);
+
+                    AddResourceViews(new ShaderResourceView[] { _weightRedView, _weightGreenView, _weightBlueView, _weightAlphaView });
 
                     // Control number of passes based on dimensions
-                    base.Passes = (this.blurDimensions == Dimensions.HorizontalAndVertical) ? 2 : 1;
+                    Passes = (_blurDimensions == Dimensions.HorizontalAndVertical) ? 2 : 1;
 
-                    base.ApronSize = Math.Max(Math.Max(Math.Max(this.redRadius, this.greenRadius), this.blueRadius), this.alphaRadius);
+                    ApronSize = Math.Max(Math.Max(Math.Max(_redRadius, _greenRadius), _blueRadius), _alphaRadius);
                 }
             }
             catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
-                this.IsInitialized = false;
+                IsInitialized = false;
             }
 
             base.OnPreRenderComplete(dstArgs, srcArgs);
@@ -189,9 +175,9 @@ namespace ComputeShaderEffects.ChannelBlur
         {
             string shaderPath;
 
-            if (pass == 1 && (this.blurDimensions == Dimensions.HorizontalAndVertical || this.blurDimensions == Dimensions.HorizontalOnly))
+            if (pass == 1 && (_blurDimensions == Dimensions.HorizontalAndVertical || _blurDimensions == Dimensions.HorizontalOnly))
             {
-                if (this.repeatEdgePixels)
+                if (_repeatEdgePixels)
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.ChannelBlurHorizClamp";
                 }
@@ -199,11 +185,11 @@ namespace ComputeShaderEffects.ChannelBlur
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.ChannelBlurHoriz";
                 }
-                isVert = false;
+                _isVert = false;
             }
             else
             {
-                if (this.repeatEdgePixels)
+                if (_repeatEdgePixels)
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.ChannelBlurVertClamp";
                 }
@@ -211,13 +197,13 @@ namespace ComputeShaderEffects.ChannelBlur
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.ChannelBlurVert";
                 }
-                isVert = true;
+                _isVert = true;
             }
 
             shaderPath += ".fx";
 
-            base.Consts = new Constants();
-            base.SetShader(shaderPath);
+            Consts = new Constants();
+            SetShader(shaderPath);
 
             base.OnBeginPass(pass, dstArgs, srcArgs);
         }
@@ -226,11 +212,11 @@ namespace ComputeShaderEffects.ChannelBlur
         {
             Constants blurConstants = (Constants)consts;
 
-            blurConstants.RedWeightLength = (uint)redWeights.Length;
-            blurConstants.GreenWeightLength = (uint)greenWeights.Length;
-            blurConstants.BlueWeightLength = (uint)blueWeights.Length;
-            blurConstants.AlphaWeightLength = (uint)alphaWeights.Length;
-            blurConstants.MaxRadius = Math.Max(Math.Max(Math.Max(this.redRadius, this.greenRadius), this.blueRadius), this.alphaRadius);
+            blurConstants.RedWeightLength = (uint)_redWeights.Length;
+            blurConstants.GreenWeightLength = (uint)_greenWeights.Length;
+            blurConstants.BlueWeightLength = (uint)_blueWeights.Length;
+            blurConstants.AlphaWeightLength = (uint)_alphaWeights.Length;
+            blurConstants.MaxRadius = Math.Max(Math.Max(Math.Max(_redRadius, _greenRadius), _blueRadius), _alphaRadius);
             blurConstants.Width = tileRect.Width - 1;
             blurConstants.Height = tileRect.Height - 1;
             blurConstants.RectOffsetX = renderRect.Left - tileRect.Left;
@@ -242,7 +228,7 @@ namespace ComputeShaderEffects.ChannelBlur
 
         protected override Rectangle AddApron(Rectangle rect, int apronRadius, Rectangle maxBounds)
         {
-            if (isVert)
+            if (_isVert)
                 rect.Inflate(0, apronRadius);
             else
                 rect.Inflate(apronRadius, 0);
@@ -254,13 +240,13 @@ namespace ComputeShaderEffects.ChannelBlur
 
         protected override void OnSetRenderInfo(PropertyBasedEffectConfigToken newToken, RenderArgs dstArgs, RenderArgs srcArgs)
         {
-            this.redRadius = newToken.GetProperty<Int32Property>(PropertyNames.RedRadius).Value;
-            this.greenRadius = newToken.GetProperty<Int32Property>(PropertyNames.GreenRadius).Value;
-            this.blueRadius = newToken.GetProperty<Int32Property>(PropertyNames.BlueRadius).Value;
-            this.alphaRadius = newToken.GetProperty<Int32Property>(PropertyNames.AlphaRadius).Value;
-            this.repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
-            this.blurDimensions = (Dimensions)newToken.GetProperty<StaticListChoiceProperty>(PropertyNames.BlurDimensions).Value;
- 
+            _redRadius = newToken.GetProperty<Int32Property>(PropertyNames.RedRadius).Value;
+            _greenRadius = newToken.GetProperty<Int32Property>(PropertyNames.GreenRadius).Value;
+            _blueRadius = newToken.GetProperty<Int32Property>(PropertyNames.BlueRadius).Value;
+            _alphaRadius = newToken.GetProperty<Int32Property>(PropertyNames.AlphaRadius).Value;
+            _repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
+            _blurDimensions = (Dimensions)newToken.GetProperty<StaticListChoiceProperty>(PropertyNames.BlurDimensions).Value;
+
             base.OnSetRenderInfo(newToken, dstArgs, srcArgs);
         }
 
@@ -285,34 +271,34 @@ namespace ComputeShaderEffects.ChannelBlur
 
         private void CleanUpLocal()
         {
-            if (weightRedData != null)
+            if (_weightRedData != null)
             {
-                weightRedData.Close();
-                weightRedData.Dispose();
+                _weightRedData.Close();
+                _weightRedData.Dispose();
             }
-            if (weightGreenData != null)
+            if (_weightGreenData != null)
             {
-                weightGreenData.Close();
-                weightGreenData.Dispose();
+                _weightGreenData.Close();
+                _weightGreenData.Dispose();
             }
-            if (weightBlueData != null)
+            if (_weightBlueData != null)
             {
-                weightBlueData.Close();
-                weightBlueData.Dispose();
+                _weightBlueData.Close();
+                _weightBlueData.Dispose();
             }
-            if (weightAlphaData != null)
+            if (_weightAlphaData != null)
             {
-                weightAlphaData.Close();
-                weightAlphaData.Dispose();
+                _weightAlphaData.Close();
+                _weightAlphaData.Dispose();
             }
-            weightRedBuffer.DisposeIfNotNull();
-            weightGreenBuffer.DisposeIfNotNull();
-            weightBlueBuffer.DisposeIfNotNull();
-            weightAlphaBuffer.DisposeIfNotNull();
-            weightRedView.DisposeIfNotNull();
-            weightGreenView.DisposeIfNotNull();
-            weightBlueView.DisposeIfNotNull();
-            weightAlphaView.DisposeIfNotNull();
+            _weightRedBuffer.DisposeIfNotNull();
+            _weightGreenBuffer.DisposeIfNotNull();
+            _weightBlueBuffer.DisposeIfNotNull();
+            _weightAlphaBuffer.DisposeIfNotNull();
+            _weightRedView.DisposeIfNotNull();
+            _weightGreenView.DisposeIfNotNull();
+            _weightBlueView.DisposeIfNotNull();
+            _weightAlphaView.DisposeIfNotNull();
         }
     }
 }

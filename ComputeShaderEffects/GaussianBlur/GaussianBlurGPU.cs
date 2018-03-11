@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Configuration;
+﻿using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -10,7 +8,6 @@ using PaintDotNet.Effects;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
 using SharpDX.Direct3D11;
-using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.GaussianBlur
 {
@@ -28,16 +25,16 @@ namespace ComputeShaderEffects.GaussianBlur
     }
 
     [PluginSupportInfo(typeof(PluginSupportInfo), DisplayName = "(GPU) Gaussian Blur")]
-    public class GaussianBlurGPU : ComputeShaderEffects.DualPassComputeShaderBase
+    public class GaussianBlurGPU : DualPassComputeShaderBase
     {
-        private int radius;
-        private bool repeatEdgePixels;
-        private Dimensions blurDimensions;
-        private float[] weights;
-        private SharpDX.DataStream weightData;
-        private SharpDX.Direct3D11.Buffer weightBuffer;
-        private ShaderResourceView weightView;
-        private bool isVert = false;
+        private int _radius;
+        private bool _repeatEdgePixels;
+        private Dimensions _blurDimensions;
+        private float[] _weights;
+        private SharpDX.DataStream _weightData;
+        private SharpDX.Direct3D11.Buffer _weightBuffer;
+        private ShaderResourceView _weightView;
+        private bool _isVert = false;
 
         public enum PropertyNames
         {
@@ -53,24 +50,12 @@ namespace ComputeShaderEffects.GaussianBlur
             VerticalOnly
         }
 
-        public static string StaticName
-        {
-            get
-            {
-                return "(GPU) Gaussian Blur";
-            }
-        }
+        public static string StaticName => "(GPU) Gaussian Blur";
 
-        public static Bitmap StaticIcon
-        {
-            get
-            {
-                return new Bitmap(typeof(GaussianBlurGPU), "GaussianBlurIcon.png");
-            }
-        }
+        public static Bitmap StaticIcon => new Bitmap(typeof(GaussianBlurGPU), "GaussianBlurIcon.png");
 
         public GaussianBlurGPU()
-            : base(GaussianBlurGPU.StaticName, GaussianBlurGPU.StaticIcon, SubmenuNames.Blurs, PaintDotNet.Effects.EffectFlags.Configurable | PaintDotNet.Effects.EffectFlags.SingleThreaded)
+            : base(GaussianBlurGPU.StaticName, GaussianBlurGPU.StaticIcon, SubmenuNames.Blurs, EffectFlags.Configurable | EffectFlags.SingleThreaded)
         {
         }
 
@@ -97,7 +82,7 @@ namespace ComputeShaderEffects.GaussianBlur
             props.Add(new Int32Property(PropertyNames.Radius, 2, 0, 200));
             props.Add(StaticListChoiceProperty.CreateForEnum<Dimensions>(PropertyNames.BlurDimensions, Dimensions.HorizontalAndVertical, false));
             props.Add(new BooleanProperty(PropertyNames.RepeatEdgePixels, true));
-            
+
             return new PropertyCollection(props);
         }
 
@@ -125,23 +110,23 @@ namespace ComputeShaderEffects.GaussianBlur
 
             try
             {
-                if (base.IsInitialized)
+                if (IsInitialized)
                 {
                     // Copy weights
-                    this.weights = CreateBlurWeights(this.radius);
-                    weightView = CreateArrayView(this.weights, base.Device, out weightData, out weightBuffer);
-                    base.AddResourceViews(new ShaderResourceView[] { weightView });
+                    _weights = CreateBlurWeights(_radius);
+                    _weightView = CreateArrayView(_weights, Device, out _weightData, out _weightBuffer);
+                    AddResourceViews(new ShaderResourceView[] { _weightView });
 
                     // Control number of passes based on dimensions
-                    base.Passes = (this.blurDimensions == Dimensions.HorizontalAndVertical) ? 2 : 1;
+                    Passes = (_blurDimensions == Dimensions.HorizontalAndVertical) ? 2 : 1;
 
-                    base.ApronSize = this.radius;
+                    ApronSize = _radius;
                 }
             }
             catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
-                base.IsInitialized = false;
+                IsInitialized = false;
             }
 
             base.OnPreRenderComplete(dstArgs, srcArgs);
@@ -151,9 +136,9 @@ namespace ComputeShaderEffects.GaussianBlur
         {
             string shaderPath;
 
-            if (pass == 1 && (this.blurDimensions == Dimensions.HorizontalAndVertical || this.blurDimensions == Dimensions.HorizontalOnly))
+            if (pass == 1 && (_blurDimensions == Dimensions.HorizontalAndVertical || _blurDimensions == Dimensions.HorizontalOnly))
             {
-                if (this.repeatEdgePixels)
+                if (_repeatEdgePixels)
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.GaussianBlurHorizClamp";
                 }
@@ -161,11 +146,11 @@ namespace ComputeShaderEffects.GaussianBlur
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.GaussianBlurHoriz";
                 }
-                isVert = false;
+                _isVert = false;
             }
             else
             {
-                if (this.repeatEdgePixels)
+                if (_repeatEdgePixels)
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.GaussianBlurVertClamp";
                 }
@@ -173,13 +158,13 @@ namespace ComputeShaderEffects.GaussianBlur
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.GaussianBlurVert";
                 }
-                isVert = true;
+                _isVert = true;
             }
 
             shaderPath += ".fx";
 
-            base.Consts = new Constants();
-            base.SetShader(shaderPath);
+            Consts = new Constants();
+            SetShader(shaderPath);
 
             base.OnBeginPass(pass, dstArgs, srcArgs);
         }
@@ -190,8 +175,8 @@ namespace ComputeShaderEffects.GaussianBlur
 
             gaussianBlurConstants.Width = tileRect.Width - 1;
             gaussianBlurConstants.Height = tileRect.Height - 1;
-            gaussianBlurConstants.WeightLength = weights.Length;
-            gaussianBlurConstants.Radius = this.radius;
+            gaussianBlurConstants.WeightLength = _weights.Length;
+            gaussianBlurConstants.Radius = _radius;
             gaussianBlurConstants.RectOffsetX = renderRect.Left - tileRect.Left;
             gaussianBlurConstants.RectOffsetY = renderRect.Top - tileRect.Top;
             gaussianBlurConstants.RectWidth = renderRect.Width;
@@ -201,7 +186,7 @@ namespace ComputeShaderEffects.GaussianBlur
 
         protected override Rectangle AddApron(Rectangle rect, int apronRadius, Rectangle maxBounds)
         {
-            if (isVert)
+            if (_isVert)
                 rect.Inflate(0, apronRadius);
             else
                 rect.Inflate(apronRadius, 0);
@@ -210,12 +195,12 @@ namespace ComputeShaderEffects.GaussianBlur
 
             return rect;
         }
-        
+
         protected override void OnSetRenderInfo(PropertyBasedEffectConfigToken newToken, RenderArgs dstArgs, RenderArgs srcArgs)
         {
-            this.radius = newToken.GetProperty<Int32Property>(PropertyNames.Radius).Value;
-            this.repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
-            this.blurDimensions = (Dimensions)newToken.GetProperty<StaticListChoiceProperty>(PropertyNames.BlurDimensions).Value;
+            _radius = newToken.GetProperty<Int32Property>(PropertyNames.Radius).Value;
+            _repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
+            _blurDimensions = (Dimensions)newToken.GetProperty<StaticListChoiceProperty>(PropertyNames.BlurDimensions).Value;
 
             base.OnSetRenderInfo(newToken, dstArgs, srcArgs);
         }
@@ -241,13 +226,13 @@ namespace ComputeShaderEffects.GaussianBlur
 
         private void CleanUpLocal()
         {
-            if (weightData != null)
+            if (_weightData != null)
             {
-                weightData.Close();
-                weightData.Dispose();
+                _weightData.Close();
+                _weightData.Dispose();
             }
-            weightBuffer.DisposeIfNotNull();
-            weightView.DisposeIfNotNull();
+            _weightBuffer.DisposeIfNotNull();
+            _weightView.DisposeIfNotNull();
         }
     }
 }

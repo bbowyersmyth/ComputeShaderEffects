@@ -1,24 +1,20 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Drawing;
-using PaintDotNet;
-using SharpDX.Direct3D11;
-using System.Windows.Forms;
-using SharpDX.D3DCompiler;
-using System.Runtime.InteropServices;
-using PaintDotNet.PropertySystem;
 using System.Configuration;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using SharpDX.Direct3D11;
+using PaintDotNet;
+using PaintDotNet.PropertySystem;
 
 namespace ComputeShaderEffects
 {
     public abstract class TiledComputeShaderBase : ComputeShaderBase
     {
-        private static int BUFF_SIZE = Marshal.SizeOf(typeof(ColorBgra));
+        private static int s_BuffSize = Marshal.SizeOf(typeof(ColorBgra));
+
+        protected System.Diagnostics.Stopwatch _tmr;
 
         public int ApronSize { get; set; }
-        protected System.Diagnostics.Stopwatch tmr;
 
         public TiledComputeShaderBase(string name, Image image, string subMenuName, PaintDotNet.Effects.EffectFlags flags)
             : base(name, image, subMenuName, flags)
@@ -34,8 +30,8 @@ namespace ComputeShaderEffects
 
             if (displayTimer != null && displayTimer.Value == "1")
             {
-                this.tmr = new System.Diagnostics.Stopwatch();
-                this.tmr.Start();
+                _tmr = new System.Diagnostics.Stopwatch();
+                _tmr.Start();
             }
 
             base.OnPreRender(dstArgs, srcArgs);
@@ -58,25 +54,25 @@ namespace ComputeShaderEffects
             dst = dstArgs.Surface;
             src = srcArgs.Surface;
 
-            constBuffer = CreateConstantBuffer(base.Device, Marshal.SizeOf(this.Consts));
+            constBuffer = CreateConstantBuffer(Device, Marshal.SizeOf(Consts));
 
             foreach (Rectangle rect in rois)
             {
-                if (!this.IsInitialized) // || base.IsCancelRequested)
+                if (!this.IsInitialized)
                     return;
 
                 // Add apron
-                Rectangle tileRect = AddApron(rect, this.ApronSize, srcArgs.Bounds);
+                Rectangle tileRect = AddApron(rect, ApronSize, srcArgs.Bounds);
 
                 // Compute Shader Parameters
-                this.Consts = SetRenderOptions(tileRect, rect, this.Consts);
+                Consts = SetRenderOptions(tileRect, rect, Consts);
 
                 // Tile texture and view
                 if (previousTileRect.Width != tileRect.Width || previousTileRect.Height != tileRect.Height)
                 {
                     textureTileView.DisposeIfNotNull();
                     textureTile.DisposeIfNotNull();
-                    textureTileView = CreateRegionView(out textureTile, base.Device, tileRect.Width, tileRect.Height);
+                    textureTileView = CreateRegionView(out textureTile, Device, tileRect.Width, tileRect.Height);
                 }
 
                 // Result buffer and view
@@ -85,17 +81,17 @@ namespace ComputeShaderEffects
                     resultView.DisposeIfNotNull();
                     resultBuffer.DisposeIfNotNull();
                     copyBuf.DisposeIfNotNull();
-                    resultBuffer = CreateBuffer(base.Device, rect.Width * rect.Height * BUFF_SIZE, BUFF_SIZE);
-                    resultView = CreateUnorderedAccessView(base.Device, resultBuffer);
-                    copyBuf = CreateStagingBuffer(base.Device, base.Context, resultBuffer);
+                    resultBuffer = CreateBuffer(Device, rect.Width * rect.Height * s_BuffSize, s_BuffSize);
+                    resultView = CreateUnorderedAccessView(Device, resultBuffer);
+                    copyBuf = CreateStagingBuffer(Device, Context, resultBuffer);
                 }
-                
+
 
                 // Copy tile from src to texture
-                SharpDX.DataBox dbox = base.Context.MapSubresource(textureTile, 0, MapMode.WriteDiscard, MapFlags.None);
+                SharpDX.DataBox dbox = Context.MapSubresource(textureTile, 0, MapMode.WriteDiscard, MapFlags.None);
                 IntPtr textureBuffer = dbox.DataPointer;
                 IntPtr srcPointer = src.GetPointPointer(tileRect.Left, tileRect.Top);
-                int length = tileRect.Width * BUFF_SIZE;
+                int length = tileRect.Width * s_BuffSize;
                 int sourceStride = src.Stride;
                 int dstStride = dbox.RowPitch;
                 int tileBottom = tileRect.Bottom;
@@ -106,41 +102,41 @@ namespace ComputeShaderEffects
                     textureBuffer = IntPtr.Add(textureBuffer, dstStride);
                     srcPointer = IntPtr.Add(srcPointer, sourceStride);
                 }
-                base.Context.UnmapSubresource(textureTile, 0);
-                
+                Context.UnmapSubresource(textureTile, 0);
+
                 // Update constants resource
                 unsafe
                 {
-                    byte[] constsBytes = RawSerialize(this.Consts);
+                    byte[] constsBytes = RawSerialize(Consts);
                     fixed (byte* p = constsBytes)
                     {
                         var box = new SharpDX.DataBox((IntPtr)p);
 
-                        base.Context.UpdateSubresource(box, constBuffer);
+                        Context.UpdateSubresource(box, constBuffer);
                     }
                 }
 
-                resourceViews[0] = textureTileView;
+                _resourceViews[0] = textureTileView;
 
-                RunComputeShader(base.Context,
-                    shader,
-                    resourceViews,
+                RunComputeShader(Context,
+                    _shader,
+                    _resourceViews,
                     new UnorderedAccessView[] { resultView },
                     constBuffer,
                     (int)Math.Ceiling(rect.Width / (float)DimensionX),
                     (int)Math.Ceiling(rect.Height / (float)DimensionY));
-                
+
                 base.Context.CopyResource(resultBuffer, copyBuf);
 
                 // Copy to destination pixels
-                SharpDX.DataBox mappedResource = base.Context.MapSubresource(copyBuf, 0, MapMode.Read, MapFlags.None);
+                SharpDX.DataBox mappedResource = Context.MapSubresource(copyBuf, 0, MapMode.Read, MapFlags.None);
                 CopyStreamToSurface(mappedResource, dst, rect);
-                base.Context.UnmapSubresource(copyBuf, 0);
-                                
+                Context.UnmapSubresource(copyBuf, 0);
+
                 previousTileRect = tileRect;
                 previousResultRect = rect;
-                
-                if (this.tmr != null &&
+
+                if (_tmr != null &&
                     rect.Top + rect.Height == src.Height &&
                     rect.Right == src.Width)
                 {
@@ -150,8 +146,8 @@ namespace ComputeShaderEffects
 
             if (isComplete)
             {
-                this.tmr.Stop();
-                System.Windows.Forms.MessageBox.Show(this.tmr.ElapsedMilliseconds.ToString() + "ms");
+                _tmr.Stop();
+                System.Windows.Forms.MessageBox.Show(_tmr.ElapsedMilliseconds.ToString() + "ms");
             }
 
             textureTileView.DisposeIfNotNull();

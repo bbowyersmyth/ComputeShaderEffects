@@ -1,26 +1,24 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Configuration;
 using System.Drawing;
-using PaintDotNet;
-using SharpDX.Direct3D11;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using System.Configuration;
+using PaintDotNet;
+using SharpDX.Direct3D11;
 
 namespace ComputeShaderEffects
 {
     public abstract class ImageComputeShaderBase : ComputeShaderBase
     {
-        private static int BUFF_SIZE = Marshal.SizeOf(typeof(ColorBgra));
+        private static int s_BuffSize = Marshal.SizeOf(typeof(ColorBgra));
 
-        private SharpDX.DataStream imageData;
-        private ShaderResourceView imageView;
-        private Texture2D texture;
-        private SharpDX.Direct3D11.Buffer imageBuffer;
+        private SharpDX.DataStream _imageData;
+        private ShaderResourceView _imageView;
+        private Texture2D _texture;
+        private SharpDX.Direct3D11.Buffer _imageBuffer;
+        private System.Diagnostics.Stopwatch _tmr;
+
         public bool IsLargeImage { get; set; }
-        private System.Diagnostics.Stopwatch tmr;
 
         public ImageComputeShaderBase(string name, Image image, string subMenuName, PaintDotNet.Effects.EffectFlags flags)
             : base(name, image, subMenuName, flags)
@@ -30,16 +28,16 @@ namespace ComputeShaderEffects
         }
 
         protected override void CleanUp()
-        {            
-            if (imageData != null)
+        {
+            if (_imageData != null)
             {
-                imageData.Close();
-                imageData.Dispose();
+                _imageData.Close();
+                _imageData.Dispose();
             }
-            imageView.DisposeIfNotNull();
-            texture.DisposeIfNotNull();
-            imageBuffer.DisposeIfNotNull();
-            
+            _imageView.DisposeIfNotNull();
+            _texture.DisposeIfNotNull();
+            _imageBuffer.DisposeIfNotNull();
+
             base.CleanUp();
         }
 
@@ -67,38 +65,38 @@ namespace ComputeShaderEffects
 
             if (displayTimer != null && displayTimer.Value == "1")
             {
-                this.tmr = new System.Diagnostics.Stopwatch();
-                this.tmr.Start();
+                _tmr = new System.Diagnostics.Stopwatch();
+                _tmr.Start();
             }
 
             base.OnPreRender(dstArgs, srcArgs);
 
-            this.IsLargeImage = (srcArgs.Width > base.MaxTextureSize || srcArgs.Height > base.MaxTextureSize);
+            IsLargeImage = (srcArgs.Width > MaxTextureSize || srcArgs.Height > MaxTextureSize);
 
             try
-            {                
-                if (this.IsInitialized)
+            {
+                if (IsInitialized)
                 {
                     // Copy source image pixels
-                    imageData = SurfaceToStream(srcArgs.Surface);
+                    _imageData = SurfaceToStream(srcArgs.Surface);
 
-                    if (this.IsLargeImage)
+                    if (IsLargeImage)
                     {
                         // Create the source image buffer and views
-                        imageBuffer = CreateBuffer(base.Device, imageData, BUFF_SIZE);
-                        imageView = CreateView(base.Device, imageBuffer);
+                        _imageBuffer = CreateBuffer(Device, _imageData, s_BuffSize);
+                        _imageView = CreateView(Device, _imageBuffer);
                     }
                     else
                     {
                         // Create the source texture view
-                        imageView = CreateView(out texture, base.Device, imageData, srcArgs.Width, srcArgs.Height);
+                        _imageView = CreateView(out _texture, Device, _imageData, srcArgs.Width, srcArgs.Height);
                     }
                 }
             }
             catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
-                this.IsInitialized = false;
+                IsInitialized = false;
             }
         }
 
@@ -115,15 +113,15 @@ namespace ComputeShaderEffects
             dst = dstArgs.Surface;
             src = srcArgs.Surface;
 
-            constBuffer = CreateConstantBuffer(base.Device, Marshal.SizeOf(this.Consts));
+            constBuffer = CreateConstantBuffer(Device, Marshal.SizeOf(Consts));
 
             foreach (Rectangle rect in rois)
             {
-                if (!this.IsInitialized || base.IsCancelRequested)
+                if (!IsInitialized || IsCancelRequested)
                     return;
-                
+
                 // Compute Shader Parameters
-                this.Consts = SetRenderOptions(rect, this.Consts);
+                Consts = SetRenderOptions(rect, Consts);
 
                 // Result buffer and view
                 if (previousRect.Width != rect.Width || previousRect.Height != rect.Height)
@@ -131,45 +129,45 @@ namespace ComputeShaderEffects
                     resultView.DisposeIfNotNull();
                     resultBuffer.DisposeIfNotNull();
                     copyBuf.DisposeIfNotNull();
-                    resultBuffer = CreateBuffer(base.Device, rect.Width * rect.Height * BUFF_SIZE, BUFF_SIZE);
-                    resultView = CreateUnorderedAccessView(base.Device, resultBuffer);
-                    copyBuf = CreateStagingBuffer(base.Device, base.Context, resultBuffer);
+                    resultBuffer = CreateBuffer(Device, rect.Width * rect.Height * s_BuffSize, s_BuffSize);
+                    resultView = CreateUnorderedAccessView(Device, resultBuffer);
+                    copyBuf = CreateStagingBuffer(Device, Context, resultBuffer);
                 }
-                
+
                 // Update constants resource
-                using (SharpDX.DataStream data = new SharpDX.DataStream(Marshal.SizeOf(this.Consts), true, true))
+                using (SharpDX.DataStream data = new SharpDX.DataStream(Marshal.SizeOf(Consts), true, true))
                 {
-                    byte[] constsBytes = RawSerialize(this.Consts);
+                    byte[] constsBytes = RawSerialize(Consts);
                     data.Write(constsBytes, 0, constsBytes.Length);
                     data.Position = 0;
-                    base.Context.UpdateSubresource(new SharpDX.DataBox(data.DataPointer), constBuffer, 0);
+                    Context.UpdateSubresource(new SharpDX.DataBox(data.DataPointer), constBuffer, 0);
                 }
 
-                resourceViews[0] = imageView;
+                _resourceViews[0] = _imageView;
 
-                RunComputeShader(base.Context,
-                    shader,
-                    resourceViews,
+                RunComputeShader(Context,
+                    _shader,
+                    _resourceViews,
                     new UnorderedAccessView[] { resultView },
                     constBuffer,
                     (int)Math.Ceiling(rect.Width / (float)DimensionX),
                     (int)Math.Ceiling(rect.Height / (float)DimensionY));
 
-                base.Context.CopyResource(resultBuffer, copyBuf);
+                Context.CopyResource(resultBuffer, copyBuf);
 
                 // Copy to destination pixels
-                SharpDX.DataBox mappedResource = base.Context.MapSubresource(copyBuf, 0, MapMode.Read, MapFlags.None);
+                SharpDX.DataBox mappedResource = Context.MapSubresource(copyBuf, 0, MapMode.Read, MapFlags.None);
                 CopyStreamToSurface(mappedResource, dst, rect);
-                base.Context.UnmapSubresource(copyBuf, 0);
+                Context.UnmapSubresource(copyBuf, 0);
 
                 previousRect = rect;
 
-                if (this.tmr != null && 
+                if (_tmr != null &&
                     rect.Top + rect.Height == src.Height &&
                     rect.Right == src.Width)
                 {
-                    this.tmr.Stop();
-                    System.Windows.Forms.MessageBox.Show(this.tmr.ElapsedMilliseconds.ToString() + "ms");
+                    _tmr.Stop();
+                    MessageBox.Show(_tmr.ElapsedMilliseconds.ToString() + "ms");
                 }
             }
 

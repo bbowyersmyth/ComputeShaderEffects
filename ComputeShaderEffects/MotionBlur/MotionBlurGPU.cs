@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using PaintDotNet;
 using PaintDotNet.Effects;
-using PaintDotNet.Rendering;
 using PaintDotNet.IndirectUI;
 using PaintDotNet.PropertySystem;
 using SharpDX.Direct3D11;
-using SharpDX.D3DCompiler;
 
 namespace ComputeShaderEffects.MotionBlur
 {
@@ -35,25 +32,23 @@ namespace ComputeShaderEffects.MotionBlur
 
         public PointType(float x, float y)
         {
-            this.X = x;
-            this.Y = y;
+            X = x;
+            Y = y;
         }
     }
 
     [PluginSupportInfo(typeof(PluginSupportInfo), DisplayName = "(GPU) Motion Blur")]
-    public class MotionBlurGPU : ComputeShaderEffects.TiledComputeShaderBase
+    public class MotionBlurGPU : TiledComputeShaderBase
     {
-        private static int BUFF_SIZE = Marshal.SizeOf(typeof(uint)); 
-        
-        private double angle;
-        private bool centered;
-        private int distance;
-        private bool repeatEdgePixels;
-        private PointType[] points;
-        private SharpDX.DataStream pointData;
-        private SharpDX.Direct3D11.Buffer pointBuffer;
-        private ShaderResourceView pointView;
-        
+        private double _angle;
+        private bool _centered;
+        private int _distance;
+        private bool _repeatEdgePixels;
+        private PointType[] _points;
+        private SharpDX.DataStream _pointData;
+        private SharpDX.Direct3D11.Buffer _pointBuffer;
+        private ShaderResourceView _pointView;
+
         public enum PropertyNames
         {
             Angle,
@@ -62,24 +57,12 @@ namespace ComputeShaderEffects.MotionBlur
             RepeatEdgePixels
         }
 
-        public static string StaticName
-        {
-            get
-            {
-                return "(GPU) Motion Blur";
-            }
-        }
+        public static string StaticName => "(GPU) Motion Blur";
 
-        public static Bitmap StaticIcon
-        {
-            get
-            {
-                return new Bitmap(typeof(MotionBlurGPU), "MotionBlurIcon.png");
-            }
-        }
+        public static Bitmap StaticIcon => new Bitmap(typeof(MotionBlurGPU), "MotionBlurIcon.png");
 
         public MotionBlurGPU()
-            : base(MotionBlurGPU.StaticName, MotionBlurGPU.StaticIcon, SubmenuNames.Blurs, PaintDotNet.Effects.EffectFlags.Configurable | PaintDotNet.Effects.EffectFlags.SingleThreaded)
+            : base(MotionBlurGPU.StaticName, MotionBlurGPU.StaticIcon, SubmenuNames.Blurs, EffectFlags.Configurable | EffectFlags.SingleThreaded)
         {
             DimensionX = 256;
             DimensionY = 1;
@@ -134,10 +117,10 @@ namespace ComputeShaderEffects.MotionBlur
 
             CleanUpLocal();
             base.OnPreRender(dstArgs, srcArgs);
-            
+
             try
             {
-                if (this.repeatEdgePixels)
+                if (_repeatEdgePixels)
                 {
                     shaderPath = "ComputeShaderEffects.Shaders.MotionBlurClamp.fx";
                 }
@@ -146,33 +129,33 @@ namespace ComputeShaderEffects.MotionBlur
                     shaderPath = "ComputeShaderEffects.Shaders.MotionBlur.fx";
                 }
 
-                base.Consts = new Constants();
-                base.SetShader(shaderPath);
+                Consts = new Constants();
+                SetShader(shaderPath);
 
-                if (base.IsInitialized)
+                if (IsInitialized)
                 {
                     // Copy points
-                    pointData = new SharpDX.DataStream(this.points.Length * Marshal.SizeOf(typeof(PointType)), true, true);
+                    _pointData = new SharpDX.DataStream(_points.Length * Marshal.SizeOf(typeof(PointType)), true, true);
 
-                    foreach (PointType pt in this.points)
+                    foreach (PointType pt in _points)
                     {
-                        pointData.Write<PointType>(pt);
+                        _pointData.Write(pt);
                     }
-                    
-                    // Create the compute shader buffer and views for common data
-                    pointBuffer = CreateBuffer(base.Device, pointData, Marshal.SizeOf(typeof(PointType)));
-                    pointView = CreateView(base.Device, pointBuffer);
-                    base.AddResourceViews(new ShaderResourceView[] { pointView } );
 
-                    base.ApronSize = (int)Math.Ceiling(Math.Max(
-                            Math.Abs(this.points[this.points.Length-1].X), 
-                            Math.Abs(this.points[this.points.Length-1].Y)));
+                    // Create the compute shader buffer and views for common data
+                    _pointBuffer = CreateBuffer(Device, _pointData, Marshal.SizeOf(typeof(PointType)));
+                    _pointView = CreateView(Device, _pointBuffer);
+                    AddResourceViews(new ShaderResourceView[] { _pointView });
+
+                    ApronSize = (int)Math.Ceiling(Math.Max(
+                        Math.Abs(_points[_points.Length - 1].X),
+                        Math.Abs(_points[_points.Length - 1].Y)));
                 }
             }
             catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
-                base.IsInitialized = false;
+                IsInitialized = false;
             }
         }
 
@@ -180,7 +163,7 @@ namespace ComputeShaderEffects.MotionBlur
         {
             Constants motionBlurConstants = (Constants)consts;
 
-            motionBlurConstants.PointsCount = points.Length;
+            motionBlurConstants.PointsCount = _points.Length;
             motionBlurConstants.Padding = 0;
             motionBlurConstants.Padding2 = 0;
             motionBlurConstants.Width = tileRect.Width - 1;
@@ -194,19 +177,19 @@ namespace ComputeShaderEffects.MotionBlur
 
         protected override void OnSetRenderInfo(PropertyBasedEffectConfigToken newToken, RenderArgs dstArgs, RenderArgs srcArgs)
         {
-            this.angle = newToken.GetProperty<DoubleProperty>(PropertyNames.Angle).Value;
-            this.distance = newToken.GetProperty<Int32Property>(PropertyNames.Distance).Value;
-            this.centered = newToken.GetProperty<BooleanProperty>(PropertyNames.Centered).Value;
-            this.repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
+            _angle = newToken.GetProperty<DoubleProperty>(PropertyNames.Angle).Value;
+            _distance = newToken.GetProperty<Int32Property>(PropertyNames.Distance).Value;
+            _centered = newToken.GetProperty<BooleanProperty>(PropertyNames.Centered).Value;
+            _repeatEdgePixels = newToken.GetProperty<BooleanProperty>(PropertyNames.RepeatEdgePixels).Value;
             PointF start = new PointF(0f, 0f);
-            double theta = (((this.angle + 180.0) * 2.0) * 3.1415926535897931) / 360.0;
-            double alpha = this.distance;
+            double theta = (((_angle + 180.0) * 2.0) * 3.1415926535897931) / 360.0;
+            double alpha = _distance;
             double x = alpha * Math.Cos(theta);
             double y = alpha * Math.Sin(theta);
             PointF end = new PointF((float)x, (float)-y);
             int pointCount;
 
-            if (this.centered)
+            if (_centered)
             {
                 start.X = -end.X / 2f;
                 start.Y = -end.Y / 2f;
@@ -214,22 +197,22 @@ namespace ComputeShaderEffects.MotionBlur
                 end.Y /= 2f;
             }
 
-            pointCount = ((1 + this.distance) * 3) / 2;
-            this.points = new PointType[pointCount / 2];
+            pointCount = ((1 + _distance) * 3) / 2;
+            _points = new PointType[pointCount / 2];
 
-            if (this.points.Length == 1)
+            if (_points.Length == 1)
             {
-                points[0].X = 0;
-                points[0].Y = 0;
+                _points[0].X = 0;
+                _points[0].Y = 0;
             }
             else
             {
-                for (int i = 0; i < this.points.Length; i++)
+                for (int i = 0; i < _points.Length; i++)
                 {
                     float frac = ((float)i * 2) / ((float)(pointCount - 1));
                     PointF pt = Lerp(start, end, frac);
-                    points[i].X = (float)pt.X;
-                    points[i].Y = (float)pt.Y;
+                    _points[i].X = (float)pt.X;
+                    _points[i].Y = (float)pt.Y;
                 }
             }
 
@@ -238,13 +221,13 @@ namespace ComputeShaderEffects.MotionBlur
 
         private void CleanUpLocal()
         {
-            if (pointData != null)
+            if (_pointData != null)
             {
-                pointData.Close();
-                pointData.Dispose();
+                _pointData.Close();
+                _pointData.Dispose();
             }
-            pointBuffer.DisposeIfNotNull();
-            pointView.DisposeIfNotNull();
+            _pointBuffer.DisposeIfNotNull();
+            _pointView.DisposeIfNotNull();
         }
 
         private static PointF Lerp(PointF a, PointF b, float t)

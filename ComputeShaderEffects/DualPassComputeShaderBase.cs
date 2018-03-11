@@ -1,16 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Drawing;
-using PaintDotNet;
+﻿using System.Drawing;
 using System.Runtime.InteropServices;
+using PaintDotNet;
 
 namespace ComputeShaderEffects
 {
-    public abstract class DualPassComputeShaderBase : TiledComputeShaderBase 
+    public abstract class DualPassComputeShaderBase : TiledComputeShaderBase
     {
-        private int pass;
+        private int _pass;
 
         public int Passes { get; set; }
 
@@ -44,63 +40,61 @@ namespace ComputeShaderEffects
             }
             else
             {
-                boundingTile = this.EnvironmentParameters.GetSelection(dstArgs.Bounds).GetBoundsInt();
-                boundingTile.Inflate(base.ApronSize, base.ApronSize);
+                boundingTile = EnvironmentParameters.GetSelection(dstArgs.Bounds).GetBoundsInt();
+                boundingTile.Inflate(ApronSize, ApronSize);
                 boundingTile.Intersect(dstArgs.Bounds);
             }
 
-            rois = base.SliceRectangles(new Rectangle[] { boundingTile });
+            rois = SliceRectangles(new Rectangle[] { boundingTile });
 
-            surfaceCopy = new Surface(dstArgs.Width, dstArgs.Height, SurfaceCreationFlags.DoNotZeroFillHint); //dstArgs.Surface.Clone();
+            surfaceCopy = new Surface(dstArgs.Width, dstArgs.Height, SurfaceCreationFlags.DoNotZeroFillHint);
             args = new RenderArgs(surfaceCopy);
 
             currentSourceArgs = srcArgs;
             currentDestinationArgs = args;
 
-            this.pass = 1;
-            OnBeginPass(this.pass, currentDestinationArgs, currentSourceArgs);
+            _pass = 1;
+            OnBeginPass(_pass, currentDestinationArgs, currentSourceArgs);
             OnRenderRegion(rois, currentDestinationArgs, currentSourceArgs);
 
             if (Passes == 1)
             {
-                CopyRois(this.EnvironmentParameters.GetSelection(dstArgs.Bounds).GetRegionScansInt(),
+                CopyRois(EnvironmentParameters.GetSelection(dstArgs.Bounds).GetRegionScansInt(),
                     dstArgs.Surface,
                     surfaceCopy);
                 surfaceCopy.Dispose();
             }
             else
             {
-                if (base.tmr != null)
+                if (_tmr != null)
                 {
-                    base.tmr = new System.Diagnostics.Stopwatch();
-                    base.tmr.Start();
+                    _tmr = new System.Diagnostics.Stopwatch();
+                    _tmr.Start();
                 }
 
-                this.pass = 2;
+                _pass = 2;
                 if (FullImageSelected(srcArgs.Bounds))
                 {
                     currentSourceArgs = args;
                     currentDestinationArgs = dstArgs;
 
-                    OnBeginPass(this.pass, currentDestinationArgs, currentSourceArgs);
+                    OnBeginPass(_pass, currentDestinationArgs, currentSourceArgs);
                     OnRenderRegion(rois, currentDestinationArgs, currentSourceArgs);
                     surfaceCopy.Dispose();
                 }
                 else
                 {
-                    Surface surfaceCopy2;
-                    RenderArgs args2;
-                    surfaceCopy2 = new Surface(dstArgs.Width, dstArgs.Height, SurfaceCreationFlags.DoNotZeroFillHint);
-                    args2 = new RenderArgs(surfaceCopy2);
+                    Surface surfaceCopy2 = new Surface(dstArgs.Width, dstArgs.Height, SurfaceCreationFlags.DoNotZeroFillHint);
+                    RenderArgs args2 = new RenderArgs(surfaceCopy2);
 
                     currentSourceArgs = args;
                     currentDestinationArgs = args2;
 
-                    OnBeginPass(this.pass, currentDestinationArgs, currentSourceArgs);
+                    OnBeginPass(_pass, currentDestinationArgs, currentSourceArgs);
                     OnRenderRegion(rois, currentDestinationArgs, currentSourceArgs);
                     surfaceCopy.Dispose();
 
-                    CopyRois(this.EnvironmentParameters.GetSelection(dstArgs.Bounds).GetRegionScansInt(),
+                    CopyRois(EnvironmentParameters.GetSelection(dstArgs.Bounds).GetRegionScansInt(),
                         dstArgs.Surface,
                         surfaceCopy2);
 

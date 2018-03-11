@@ -1,48 +1,18 @@
-﻿using PaintDotNet;
-using System;
+﻿using System;
+using PaintDotNet;
 
 namespace ComputeShaderEffects
 {
     public class PluginSupportInfo : IPluginSupportInfo
     {
-        public string Author
-        {
-            get
-            {
-                return "Bruce Bowyer-Smyth";
-            }
-        }
+        public string Author => "Bruce Bowyer-Smyth";
 
-        public string Copyright
-        {
-            get
-            {
-                return "Bruce Bowyer-Smyth";
-            }
-        }
+        public string Copyright => "Bruce Bowyer-Smyth";
 
-        public string DisplayName
-        {
-            get
-            {
-                return "Motion Blur (GPU)";
-            }
-        }
+        public string DisplayName => "Motion Blur (GPU)";
 
-        public Version Version
-        {
-            get
-            {
-                return base.GetType().Assembly.GetName().Version;
-            }
-        }
+        public Version Version => GetType().Assembly.GetName().Version;
 
-        public Uri WebsiteUri
-        {
-            get
-            {
-                return new Uri("http://www.wmf2wpf.com");
-            }
-        }
+        public Uri WebsiteUri => new Uri("https://github.com/bbowyersmyth/ComputeShaderEffects");
     }
 }

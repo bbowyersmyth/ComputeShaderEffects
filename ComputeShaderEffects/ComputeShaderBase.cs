@@ -1,88 +1,40 @@
 ﻿using System;
+using System.Configuration;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using PaintDotNet;
 using PaintDotNet.Effects;
 using PaintDotNet.PropertySystem;
-using PaintDotNet;
-using SharpDX.Direct3D11;
-using System.Runtime.InteropServices;
-using System.IO;
-using System.Configuration;
 using SharpDX.D3DCompiler;
-using System.Windows.Forms;
 using SharpDX.Direct3D;
+using SharpDX.Direct3D11;
 
 namespace ComputeShaderEffects
 {
-    public abstract class ComputeShaderBase : PaintDotNet.Effects.PropertyBasedEffect
+    public abstract class ComputeShaderBase : PropertyBasedEffect
     {
         [DllImport("kernel32.dll")]
-        protected static extern void CopyMemory(IntPtr destination, IntPtr source, int length); 
+        protected static extern void CopyMemory(IntPtr destination, IntPtr source, int length);
 
-        private static int COLOR_SIZE = Marshal.SizeOf(typeof(ColorBgra));
-        private bool newRender = false;
+        private static int s_ColorSize = Marshal.SizeOf(typeof(ColorBgra));
+        private bool _newRender = false;
+        private ShaderBytecode _shaderCode;
 
-        private object consts;
-        private Device device;
-        private DeviceContext context;
-        protected ComputeShader shader;
-        private ShaderBytecode shaderCode;
-        protected ShaderResourceView[] resourceViews = new ShaderResourceView[1];
-        private bool isInitialized;
-        protected object renderLock = new object();
+        protected ComputeShader _shader;
+        protected ShaderResourceView[] _resourceViews = new ShaderResourceView[1];
+        protected object _renderLock = new object();
 
-        public object Consts
-        {
-            get
-            {
-                return this.consts;
-            }
-            set
-            {
-                this.consts = value;
-            }
-        }
+        public object Consts { get; set; }
+        public DeviceContext Context { get; set; }
+        public Device Device { get; set; }
+        public bool IsInitialized { get; set; }
 
-        public DeviceContext Context
-        {
-            get
-            {
-                return this.context;
-            }
-            set
-            {
-                this.context = value;
-            }
-        }
-
-        public Device Device
-        {
-            get
-            {
-                return this.device;
-            }
-            set
-            {
-                this.device = value;
-            }
-        }
-
-        public bool IsInitialized
-        {
-            get
-            {
-                return this.isInitialized;
-            }
-            set
-            {
-                this.isInitialized = value;
-            }
-        }
-
-        public int DimensionX = 16;
-        public int DimensionY = 16;
+        public int DimensionX { get; set; } = 16;
+        public int DimensionY { get; set; } = 16;
         public int MaximumRegionWidth { get; set; }
         public int MaximumRegionHeight { get; set; }
         public int MaxTextureSize { get; private set; }
@@ -95,7 +47,6 @@ namespace ComputeShaderEffects
             CustomRegionHandling = false;
         }
 
-
         internal static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
         {
             IntPtr textureBuffer = dbox.DataPointer;
@@ -103,11 +54,11 @@ namespace ComputeShaderEffects
 
             if (rect.Width == dst.Width)
             {
-                CopyMemory(dstPointer, textureBuffer, rect.Width * rect.Height * COLOR_SIZE);
+                CopyMemory(dstPointer, textureBuffer, rect.Width * rect.Height * s_ColorSize);
             }
             else
             {
-                int length = rect.Width * COLOR_SIZE;
+                int length = rect.Width * s_ColorSize;
                 int dstStride = dst.Stride;
                 int rectBottom = rect.Bottom;
 
@@ -119,11 +70,11 @@ namespace ComputeShaderEffects
                 }
             }
         }
-        
-        internal static SharpDX.Direct3D11.ShaderResourceView CreateArrayView(float[] values, Device device, out SharpDX.DataStream data, out SharpDX.Direct3D11.Buffer buff)
+
+        internal static ShaderResourceView CreateArrayView(float[] values, Device device, out SharpDX.DataStream data, out SharpDX.Direct3D11.Buffer buff)
         {
             data = new SharpDX.DataStream(values.Length * Marshal.SizeOf(typeof(float)), true, true);
-            data.WriteRange<float>(values);
+            data.WriteRange(values);
 
             // Create the compute shader buffer and views for common data
             buff = CreateBuffer(device, data, Marshal.SizeOf(typeof(float)));
@@ -141,7 +92,7 @@ namespace ComputeShaderEffects
 
             return new SharpDX.Direct3D11.Buffer(device, desc);
         }
-        
+
         internal static SharpDX.Direct3D11.Buffer CreateBuffer(Device device, SharpDX.DataStream initData, int stride)
         {
             BufferDescription desc = new BufferDescription
@@ -183,49 +134,49 @@ namespace ComputeShaderEffects
             return new SharpDX.Direct3D11.Buffer(device, desc);
         }
 
-        internal static void CreateDevice(out Device device, out DeviceContext context, out bool isInitialized)
+        private void CreateDevice()
         {
             try
             {
                 SharpDX.Direct3D.FeatureLevel[] level = new SharpDX.Direct3D.FeatureLevel[] { SharpDX.Direct3D.FeatureLevel.Level_10_0 };
-                device = new Device(SharpDX.Direct3D.DriverType.Hardware, DeviceCreationFlags.SingleThreaded, level);
+                Device = new Device(SharpDX.Direct3D.DriverType.Hardware, DeviceCreationFlags.SingleThreaded, level);
 
-                if (!device.CheckFeatureSupport(Feature.ComputeShaders))
+                if (!Device.CheckFeatureSupport(Feature.ComputeShaders))
                 {
                     // GPU does not support compute shaders
-                    device.Dispose();
-                    device = new Device(SharpDX.Direct3D.DriverType.Warp, DeviceCreationFlags.SingleThreaded, level);
+                    Device.Dispose();
+                    Device = new Device(SharpDX.Direct3D.DriverType.Warp, DeviceCreationFlags.SingleThreaded, level);
 
-                    if (!device.CheckFeatureSupport(Feature.ComputeShaders))
+                    if (!Device.CheckFeatureSupport(Feature.ComputeShaders))
                     {
                         // This version of Warp does not support compute shaders
-                        device.Dispose();
+                        Device.Dispose();
 
-                        isInitialized = false;
-                        context = null;
+                        IsInitialized = false;
+                        Context = null;
                     }
                     else
                     {
-                        isInitialized = true;
-                        context = device.ImmediateContext;
+                        IsInitialized = true;
+                        Context = Device.ImmediateContext;
                     }
                 }
                 else
                 {
-                    isInitialized = true;
-                    context = device.ImmediateContext;
+                    IsInitialized = true;
+                    Context = Device.ImmediateContext;
                 }
             }
             catch
             {
-                device = null;
-                context = null;
-                isInitialized = false;
+                Device = null;
+                Context = null;
+                IsInitialized = false;
             }
 
-            if (!isInitialized)
+            if (!IsInitialized)
             {
-                System.Windows.Forms.MessageBox.Show("Device creation failed.\n\nPlease ensure that you have the latest drivers for your "
+                MessageBox.Show("Device creation failed.\n\nPlease ensure that you have the latest drivers for your "
                     + "video card and that it supports DirectCompute.", "Hardware Accelerated Blur Pack");
             }
         }
@@ -251,12 +202,12 @@ namespace ComputeShaderEffects
             {
                 Dimension = ShaderResourceViewDimension.Texture2D,
                 Format = texDesc.Format,
-                Texture2D = { MipLevels = 1, MostDetailedMip=0 } 
+                Texture2D = { MipLevels = 1, MostDetailedMip = 0 }
             };
 
             return new ShaderResourceView(device, texture, desc);
         }
-        
+
         internal static void CreateShader(Device device, out ShaderBytecode shaderCode, out ComputeShader shader, string shaderPath)
         {
             MemoryStream mem = new MemoryStream(GetEmbeddedContent(shaderPath));
@@ -279,7 +230,7 @@ namespace ComputeShaderEffects
                 SampleDescription = new SharpDX.DXGI.SampleDescription(1, 0)
             };
 
-            SharpDX.DataRectangle data = new SharpDX.DataRectangle(ds.DataPointer, width * COLOR_SIZE);
+            SharpDX.DataRectangle data = new SharpDX.DataRectangle(ds.DataPointer, width * s_ColorSize);
             texture = new Texture2D(device, texDesc, data);
 
             ShaderResourceViewDescription desc = new ShaderResourceViewDescription
@@ -346,18 +297,7 @@ namespace ComputeShaderEffects
 
         internal static SharpDX.DataStream SurfaceToStream(Surface src)
         {
-            //int height = src.Height;
-            //int byteWidth = src.Width * COLOR_SIZE;
-            //SharpDX.DataStream imageStream = new SharpDX.DataStream(src.Width * height * COLOR_SIZE, true, true);
-
-            //for (int imgY = 0; imgY < height; imgY++)
-            //{
-            //    imageStream.WriteRange(src.GetPointPointer(0, imgY), byteWidth);
-            //}
-
-            //return imageStream;
-
-            return new SharpDX.DataStream(src.Scan0.Pointer, src.Width * src.Height * COLOR_SIZE, true, false);
+            return new SharpDX.DataStream(src.Scan0.Pointer, src.Width * src.Height * s_ColorSize, true, false);
         }
 
         protected abstract override PropertyCollection OnCreatePropertyCollection();
@@ -369,34 +309,34 @@ namespace ComputeShaderEffects
             try
             {
                 // Create DirectX device and shaders
-                CreateDevice(out device, out context, out this.isInitialized);
+                CreateDevice();
             }
             catch (SharpDX.SharpDXException ex)
             {
                 MessageBox.Show(ex.Message);
-                this.isInitialized = false;
+                IsInitialized = false;
             }
         }
 
         protected void SetShader(string path)
         {
-            shaderCode.DisposeIfNotNull();
-            shader.DisposeIfNotNull();
-            CreateShader(device, out shaderCode, out shader, path);
+            _shaderCode.DisposeIfNotNull();
+            _shader.DisposeIfNotNull();
+            CreateShader(Device, out _shaderCode, out _shader, path);
         }
 
         protected virtual void CleanUp()
         {
-            shader.DisposeIfNotNull();
-            shaderCode.DisposeIfNotNull();
-            context.DisposeIfNotNull();
-            device.DisposeIfNotNull();
+            _shader.DisposeIfNotNull();
+            _shaderCode.DisposeIfNotNull();
+            Context.DisposeIfNotNull();
+            Device.DisposeIfNotNull();
         }
 
         protected void AddResourceViews(ShaderResourceView[] views)
         {
-            resourceViews = new ShaderResourceView[views.Length + 1];
-            System.Array.Copy(views, 0, resourceViews, 1, views.Length);
+            _resourceViews = new ShaderResourceView[views.Length + 1];
+            Array.Copy(views, 0, _resourceViews, 1, views.Length);
         }
 
         protected override void OnRender(Rectangle[] rois, int startIndex, int length)
@@ -404,19 +344,19 @@ namespace ComputeShaderEffects
             if (length == 0)
                 return;
 
-            lock (renderLock)
+            lock (_renderLock)
             {
-                if (this.CustomRegionHandling && FullImageSelected(base.SrcArgs.Bounds))
+                if (CustomRegionHandling && FullImageSelected(SrcArgs.Bounds))
                 {
-                    if (this.newRender)
+                    if (_newRender)
                     {
-                        this.newRender = false;
-                        this.OnRenderRegion(SliceRectangles(new Rectangle[] { this.EnvironmentParameters.GetSelection(base.SrcArgs.Bounds).GetBoundsInt() }), base.DstArgs, base.SrcArgs);
+                        _newRender = false;
+                        OnRenderRegion(SliceRectangles(new Rectangle[] { EnvironmentParameters.GetSelection(SrcArgs.Bounds).GetBoundsInt() }), DstArgs, SrcArgs);
                     }
                 }
                 else
                 {
-                    this.OnRenderRegion(SliceRectangles(rois.Skip<Rectangle>(startIndex).Take<Rectangle>(length).ToArray<Rectangle>()), base.DstArgs, base.SrcArgs);
+                    OnRenderRegion(SliceRectangles(rois.Skip(startIndex).Take(length).ToArray()), DstArgs, SrcArgs);
                 }
             }
         }
@@ -427,14 +367,14 @@ namespace ComputeShaderEffects
 
         protected override void OnSetRenderInfo(PropertyBasedEffectConfigToken newToken, RenderArgs dstArgs, RenderArgs srcArgs)
         {
-            this.newRender = true;
+            _newRender = true;
             base.OnSetRenderInfo(newToken, dstArgs, srcArgs);
-            this.OnPreRender(dstArgs, srcArgs);
+            OnPreRender(dstArgs, srcArgs);
         }
 
         internal Rectangle[] SliceRectangles(Rectangle[] rois)
         {
-            if (rois.Length == 0 || (this.MaximumRegionHeight == 0 && this.MaximumRegionWidth == 0))
+            if (rois.Length == 0 || (MaximumRegionHeight == 0 && MaximumRegionWidth == 0))
                 return rois;
 
             // Re-slice regions
@@ -444,19 +384,19 @@ namespace ComputeShaderEffects
             // Resize width
             foreach (Rectangle rect in rectCopy)
             {
-                if (this.MaximumRegionWidth > 0 && rect.Width > this.MaximumRegionWidth)
+                if (MaximumRegionWidth > 0 && rect.Width > MaximumRegionWidth)
                 {
-                    int sliceCount = (int)Math.Ceiling((double)rect.Width / (double)this.MaximumRegionWidth);
+                    int sliceCount = (int)Math.Ceiling((double)rect.Width / (double)MaximumRegionWidth);
 
                     for (int i = 0; i < sliceCount; i++)
                     {
                         if (i < sliceCount - 1)
                         {
-                            sizedRegions.Add(new Rectangle(rect.X + (this.MaximumRegionWidth * i), rect.Y, this.MaximumRegionWidth, rect.Height));
+                            sizedRegions.Add(new Rectangle(rect.X + (MaximumRegionWidth * i), rect.Y, MaximumRegionWidth, rect.Height));
                         }
                         else
                         {
-                            int remainingWidth = rect.Width - this.MaximumRegionWidth * (sliceCount - 1);
+                            int remainingWidth = rect.Width - MaximumRegionWidth * (sliceCount - 1);
                             sizedRegions.Add(new Rectangle(rect.Right - remainingWidth, rect.Y, remainingWidth, rect.Height));
                         }
                     }
@@ -473,19 +413,19 @@ namespace ComputeShaderEffects
             // Resize height
             foreach (Rectangle rect in rectCopy)
             {
-                if (this.MaximumRegionHeight > 0 && rect.Height > this.MaximumRegionHeight)
+                if (MaximumRegionHeight > 0 && rect.Height > MaximumRegionHeight)
                 {
-                    int sliceCount = (int)Math.Ceiling((double)rect.Height / (double)this.MaximumRegionHeight);
+                    int sliceCount = (int)Math.Ceiling((double)rect.Height / (double)MaximumRegionHeight);
 
                     for (int i = 0; i < sliceCount; i++)
                     {
                         if (i < sliceCount - 1)
                         {
-                            sizedRegions.Add(new Rectangle(rect.X, rect.Y + (this.MaximumRegionHeight * i), rect.Width, this.MaximumRegionHeight));
+                            sizedRegions.Add(new Rectangle(rect.X, rect.Y + (MaximumRegionHeight * i), rect.Width, MaximumRegionHeight));
                         }
                         else
                         {
-                            int remainingHeight = rect.Height - this.MaximumRegionHeight * (sliceCount - 1);
+                            int remainingHeight = rect.Height - MaximumRegionHeight * (sliceCount - 1);
                             sizedRegions.Add(new Rectangle(rect.X, rect.Bottom - remainingHeight, rect.Width, remainingHeight));
                         }
                     }
@@ -501,7 +441,7 @@ namespace ComputeShaderEffects
 
         internal bool FullImageSelected(Rectangle bounds)
         {
-            Rectangle[] rois = this.EnvironmentParameters.GetSelection(bounds).GetRegionScansReadOnlyInt();
+            Rectangle[] rois = EnvironmentParameters.GetSelection(bounds).GetRegionScansReadOnlyInt();
             return (rois.Length == 1 && rois[0] == bounds);
         }
 
