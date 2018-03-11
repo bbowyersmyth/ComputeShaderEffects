@@ -31,6 +31,7 @@ namespace ComputeShaderEffects
         private ShaderBytecode shaderCode;
         protected ShaderResourceView[] resourceViews = new ShaderResourceView[1];
         private bool isInitialized;
+        protected object renderLock = new object();
 
         public object Consts
         {
@@ -403,17 +404,20 @@ namespace ComputeShaderEffects
             if (length == 0)
                 return;
 
-            if (this.CustomRegionHandling && FullImageSelected(base.SrcArgs.Bounds))
+            lock (renderLock)
             {
-                if (this.newRender)
+                if (this.CustomRegionHandling && FullImageSelected(base.SrcArgs.Bounds))
                 {
-                    this.newRender = false;
-                    this.OnRenderRegion(SliceRectangles(new Rectangle[] { this.EnvironmentParameters.GetSelection(base.SrcArgs.Bounds).GetBoundsInt() }), base.DstArgs, base.SrcArgs);
+                    if (this.newRender)
+                    {
+                        this.newRender = false;
+                        this.OnRenderRegion(SliceRectangles(new Rectangle[] { this.EnvironmentParameters.GetSelection(base.SrcArgs.Bounds).GetBoundsInt() }), base.DstArgs, base.SrcArgs);
+                    }
                 }
-            }
-            else
-            {
-                this.OnRenderRegion(SliceRectangles(rois.Skip<Rectangle>(startIndex).Take<Rectangle>(length).ToArray<Rectangle>()), base.DstArgs, base.SrcArgs);
+                else
+                {
+                    this.OnRenderRegion(SliceRectangles(rois.Skip<Rectangle>(startIndex).Take<Rectangle>(length).ToArray<Rectangle>()), base.DstArgs, base.SrcArgs);
+                }
             }
         }
 
