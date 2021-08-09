@@ -37,7 +37,7 @@ namespace ComputeShaderEffects
             base.OnPreRender(dstArgs, srcArgs);
         }
 
-        protected override void OnRenderRegion(Rectangle[] rois, RenderArgs dstArgs, RenderArgs srcArgs)
+        protected override unsafe void OnRenderRegion(Rectangle[] rois, RenderArgs dstArgs, RenderArgs srcArgs)
         {
             Surface dst;
             Surface src;
@@ -90,7 +90,7 @@ namespace ComputeShaderEffects
                 // Copy tile from src to texture
                 SharpDX.DataBox dbox = Context.MapSubresource(textureTile, 0, MapMode.WriteDiscard, MapFlags.None);
                 IntPtr textureBuffer = dbox.DataPointer;
-                IntPtr srcPointer = src.GetPointPointer(tileRect.Left, tileRect.Top);
+                ColorBgra* srcPointer = src.GetPointPointer(tileRect.Left, tileRect.Top);
                 int length = tileRect.Width * s_BuffSize;
                 int sourceStride = src.Stride;
                 int dstStride = dbox.RowPitch;
@@ -98,9 +98,9 @@ namespace ComputeShaderEffects
 
                 for (int y = tileRect.Top; y < tileBottom; y++)
                 {
-                    CopyMemory(textureBuffer, srcPointer, length);
+                    BufferUtil.Copy((void*)textureBuffer, srcPointer, length);
                     textureBuffer = IntPtr.Add(textureBuffer, dstStride);
-                    srcPointer = IntPtr.Add(srcPointer, sourceStride);
+                    srcPointer = (ColorBgra*)((byte*)srcPointer + sourceStride);
                 }
                 Context.UnmapSubresource(textureTile, 0);
 

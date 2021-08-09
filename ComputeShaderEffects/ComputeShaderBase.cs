@@ -17,9 +17,6 @@ namespace ComputeShaderEffects
 {
     public abstract class ComputeShaderBase : PropertyBasedEffect
     {
-        [DllImport("kernel32.dll")]
-        protected static extern void CopyMemory(IntPtr destination, IntPtr source, int length);
-
         private static int s_ColorSize = Marshal.SizeOf(typeof(ColorBgra));
         private bool _newRender = false;
         private ShaderBytecode _shaderCode;
@@ -47,16 +44,17 @@ namespace ComputeShaderEffects
             CustomRegionHandling = false;
         }
 
-        internal static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
+        internal static unsafe void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
         {
             IntPtr textureBuffer = dbox.DataPointer;
-            IntPtr dstPointer = dst.GetPointPointer(rect.Left, rect.Top);
+            ColorBgra* dstPointer = dst.GetPointPointer(rect.Left, rect.Top);
 
-            if (rect.Width == dst.Width)
+            /*if (rect.Width == dst.Width)
             {
-                CopyMemory(dstPointer, textureBuffer, rect.Width * rect.Height * s_ColorSize);
+                // This is invalid code unless dst.Stride == dst.Width*sizeof(ColorBgra)
+                BufferUtil.Copy(dstPointer, (void*)textureBuffer, rect.Width * rect.Height * s_ColorSize);
             }
-            else
+            else*/
             {
                 int length = rect.Width * s_ColorSize;
                 int dstStride = dst.Stride;
@@ -64,9 +62,9 @@ namespace ComputeShaderEffects
 
                 for (int y = rect.Top; y < rectBottom; y++)
                 {
-                    CopyMemory(dstPointer, textureBuffer, length);
+                    BufferUtil.Copy(dstPointer, (void*)textureBuffer, length);
                     textureBuffer = IntPtr.Add(textureBuffer, length);
-                    dstPointer = IntPtr.Add(dstPointer, dstStride);
+                    dstPointer = (ColorBgra*)((byte*)dstPointer + dstStride);
                 }
             }
         }

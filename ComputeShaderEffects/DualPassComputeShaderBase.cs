@@ -117,7 +117,7 @@ namespace ComputeShaderEffects
 
                 for (int y = copyRect.Top; y < copyRect.Bottom; y++)
                 {
-                    CopyMemory(dest.GetPointPointer(copyRect.Left, y), source.GetPointPointer(copyRect.Left, y), length);
+                    BufferUtil.Copy(dest.GetPointPointer(copyRect.Left, y), source.GetPointPointer(copyRect.Left, y), length);
                 }
             }
         }
