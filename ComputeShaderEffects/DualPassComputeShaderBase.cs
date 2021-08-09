@@ -40,7 +40,7 @@ namespace ComputeShaderEffects
             }
             else
             {
-                boundingTile = EnvironmentParameters.GetSelection(dstArgs.Bounds).GetBoundsInt();
+                boundingTile = EnvironmentParameters.SelectionBounds;
                 boundingTile.Inflate(ApronSize, ApronSize);
                 boundingTile.Intersect(dstArgs.Bounds);
             }
@@ -59,7 +59,7 @@ namespace ComputeShaderEffects
 
             if (Passes == 1)
             {
-                CopyRois(EnvironmentParameters.GetSelection(dstArgs.Bounds).GetRegionScansInt(),
+                CopyRois(EnvironmentParameters.GetSelectionAsPdnRegion().GetRegionScansReadOnlyInt(),
                     dstArgs.Surface,
                     surfaceCopy);
                 surfaceCopy.Dispose();
@@ -94,7 +94,7 @@ namespace ComputeShaderEffects
                     OnRenderRegion(rois, currentDestinationArgs, currentSourceArgs);
                     surfaceCopy.Dispose();
 
-                    CopyRois(EnvironmentParameters.GetSelection(dstArgs.Bounds).GetRegionScansInt(),
+                    CopyRois(EnvironmentParameters.GetSelectionAsPdnRegion().GetRegionScansReadOnlyInt(),
                         dstArgs.Surface,
                         surfaceCopy2);
 

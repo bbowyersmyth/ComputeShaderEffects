@@ -41,7 +41,7 @@ namespace ComputeShaderEffects
         public bool CustomRegionHandling { get; set; }
 
         protected ComputeShaderBase(string name, Image image, string subMenuName, PaintDotNet.Effects.EffectFlags flags)
-            : base(name, image, subMenuName, flags)
+            : base(name, image, subMenuName, new EffectOptions() { Flags = flags })
         {
             MaxTextureSize = 8216;
             CustomRegionHandling = false;
@@ -351,7 +351,7 @@ namespace ComputeShaderEffects
                     if (_newRender)
                     {
                         _newRender = false;
-                        OnRenderRegion(SliceRectangles(new Rectangle[] { EnvironmentParameters.GetSelection(SrcArgs.Bounds).GetBoundsInt() }), DstArgs, SrcArgs);
+                        OnRenderRegion(SliceRectangles(new Rectangle[] { EnvironmentParameters.SelectionBounds }), DstArgs, SrcArgs);
                     }
                 }
                 else
@@ -441,7 +441,7 @@ namespace ComputeShaderEffects
 
         internal bool FullImageSelected(Rectangle bounds)
         {
-            Rectangle[] rois = EnvironmentParameters.GetSelection(bounds).GetRegionScansReadOnlyInt();
+            Rectangle[] rois = EnvironmentParameters.GetSelectionAsPdnRegion().GetRegionScansReadOnlyInt();
             return (rois.Length == 1 && rois[0] == bounds);
         }
 
