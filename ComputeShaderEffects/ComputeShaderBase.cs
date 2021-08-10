@@ -17,9 +17,6 @@ namespace ComputeShaderEffects
 {
     public abstract class ComputeShaderBase : PropertyBasedEffect
     {
-        [DllImport("kernel32.dll")]
-        protected static extern void CopyMemory(IntPtr destination, IntPtr source, int length);
-
         private static int s_ColorSize = Marshal.SizeOf(typeof(ColorBgra));
         private bool _newRender = false;
         private ShaderBytecode _shaderCode;
@@ -41,22 +38,23 @@ namespace ComputeShaderEffects
         public bool CustomRegionHandling { get; set; }
 
         protected ComputeShaderBase(string name, Image image, string subMenuName, PaintDotNet.Effects.EffectFlags flags)
-            : base(name, image, subMenuName, flags)
+            : base(name, image, subMenuName, new EffectOptions() { Flags = flags })
         {
             MaxTextureSize = 8216;
             CustomRegionHandling = false;
         }
 
-        internal static void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
+        internal static unsafe void CopyStreamToSurface(SharpDX.DataBox dbox, Surface dst, Rectangle rect)
         {
             IntPtr textureBuffer = dbox.DataPointer;
-            IntPtr dstPointer = dst.GetPointPointer(rect.Left, rect.Top);
+            ColorBgra* dstPointer = dst.GetPointPointer(rect.Left, rect.Top);
 
-            if (rect.Width == dst.Width)
+            /*if (rect.Width == dst.Width)
             {
-                CopyMemory(dstPointer, textureBuffer, rect.Width * rect.Height * s_ColorSize);
+                // This is invalid code unless dst.Stride == dst.Width*sizeof(ColorBgra)
+                BufferUtil.Copy(dstPointer, (void*)textureBuffer, rect.Width * rect.Height * s_ColorSize);
             }
-            else
+            else*/
             {
                 int length = rect.Width * s_ColorSize;
                 int dstStride = dst.Stride;
@@ -64,9 +62,9 @@ namespace ComputeShaderEffects
 
                 for (int y = rect.Top; y < rectBottom; y++)
                 {
-                    CopyMemory(dstPointer, textureBuffer, length);
+                    BufferUtil.Copy(dstPointer, (void*)textureBuffer, length);
                     textureBuffer = IntPtr.Add(textureBuffer, length);
-                    dstPointer = IntPtr.Add(dstPointer, dstStride);
+                    dstPointer = (ColorBgra*)((byte*)dstPointer + dstStride);
                 }
             }
         }
@@ -351,7 +349,7 @@ namespace ComputeShaderEffects
                     if (_newRender)
                     {
                         _newRender = false;
-                        OnRenderRegion(SliceRectangles(new Rectangle[] { EnvironmentParameters.GetSelection(SrcArgs.Bounds).GetBoundsInt() }), DstArgs, SrcArgs);
+                        OnRenderRegion(SliceRectangles(new Rectangle[] { EnvironmentParameters.SelectionBounds }), DstArgs, SrcArgs);
                     }
                 }
                 else
@@ -441,7 +439,7 @@ namespace ComputeShaderEffects
 
         internal bool FullImageSelected(Rectangle bounds)
         {
-            Rectangle[] rois = EnvironmentParameters.GetSelection(bounds).GetRegionScansReadOnlyInt();
+            Rectangle[] rois = EnvironmentParameters.GetSelectionAsPdnRegion().GetRegionScansReadOnlyInt();
             return (rois.Length == 1 && rois[0] == bounds);
         }
 
